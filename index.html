@@ -3,162 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neon Cosmos: Particle Physics Sandbox</title>
+    <title>Quantum Vortex Sandbox</title>
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background: #05050a; font-family: monospace; user-select: none; }
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #050510; font-family: sans-serif; height: 100%; user-select: none; }
         canvas { display: block; width: 100vw; height: 100vh; }
-        #ui { position: absolute; top: 20px; left: 20px; color: #00ffcc; font-size: 18px; pointer-events: none; text-shadow: 0 0 10px #00ffcc; }
-        #instructions { position: absolute; bottom: 20px; width: 100%; text-align: center; color: #444477; font-size: 14px; pointer-events: none; }
+        #ui { position: absolute; top: 15px; left: 15px; color: #fff; background: rgba(10, 10, 30, 0.75); padding: 15px; border-radius: 12px; border: 1px solid #334155; backdrop-filter: blur(8px); pointer-events: none; }
+        h3 { margin: 0 0 4px 0; font-size: 16px; letter-spacing: 1px; color: #38bdf8; text-transform: uppercase; }
+        p { margin: 0; font-size: 12px; color: #94a3b8; line-height: 1.5; }
     </style>
 </head>
 <body>
-    <div id="ui">SCORE: <span id="score">0</span> | MULTIPLIER: x<span id="mult">1</span></div>
-    <div id="instructions">CLICK & HOLD TO CREATE GRAVITY WELLS — TRAP PARTICLES FOR MASSIVE CHAIN REACTIONS</div>
-    <canvas id="canvas"></canvas>
+    <div id="ui">
+        <h3>Quantum Vortex</h3>
+        <p>• Left Click & Drag: Pull & Swirl Particles<br>• Right Click / Double Tap: Trigger Explosion</p>
+    </div>
+    <canvas id="sandbox"></canvas>
 
     <script>
-        const canvas = document.getElementById('canvas');
+        const canvas = document.getElementById('sandbox');
         const ctx = canvas.getContext('2d');
-        const scoreEl = document.getElementById('score');
-        const multEl = document.getElementById('mult');
-
         let width = canvas.width = window.innerWidth;
         let height = canvas.height = window.innerHeight;
         
-        let particles = [];
-        let wells = [];
-        let score = 0;
-        let multiplier = 1;
-        let lastWellTime = 0;
-
         window.addEventListener('resize', () => { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; });
 
+        const particles = [];
+        const vortexes = [];
+        let isMouseDown = false;
+        let mouseX = 0, mouseY = 0;
+
         class Particle {
-            constructor() {
-                this.reset();
-                this.x = Math.random() * width;
-                this.y = Math.random() * height;
-            }
-            reset() {
-                this.x = Math.random() > 0.5 ? 0 : width;
-                this.y = Math.random() * height;
-                this.vx = (Math.random() - 0.5) * 4;
-                this.vy = (Math.random() - 0.5) * 4;
-                this.radius = Math.random() * 2 + 1;
-                this.hue = Math.random() * 60 + 180; // Cyan to Purple
-                this.alpha = 1;
-                this.isCaptured = false;
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.vx = (Math.random() - 0.5) * 5;
+                this.vy = (Math.random() - 0.5) * 5;
+                this.hue = Math.random() * 40 + 190; // Deep cyan/blue spectrum
+                this.size = Math.random() * 2.5 + 1;
             }
             update() {
-                wells.forEach(well => {
-                    const dx = well.x - this.x;
-                    const dy = well.y - this.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (dist < well.radius) {
-                        if (!this.isCaptured) {
-                            this.isCaptured = true;
-                            score += Math.floor(10 * multiplier);
-                            multiplier += 0.1;
-                            scoreEl.innerText = score;
-                            multEl.innerText = multiplier.toFixed(1);
-                            well.pulse = 15;
-                        }
-                        this.alpha -= 0.05;
-                    } else if (dist < well.gravityRange) {
-                        // Physics forces: Gravity pull + Orbit swirl force
-                        const force = (well.gravityRange - dist) / well.gravityRange * well.strength;
-                        this.vx += (dx / dist) * force + (-dy / dist) * (force * 0.5);
-                        this.vy += (dy / dist) * force + (dx / dist) * (force * 0.5);
-                        this.hue += 1; // Color shifts as it gets pulled
+                vortexes.forEach(v => {
+                    const dx = v.x - this.x;
+                    const dy = v.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    if (dist < v.radius) {
+                        const force = (v.radius - dist) / v.radius * 0.5;
+                        // Inward orbital pull
+                        this.vx += (dx / dist) * force;
+                        this.vy += (dy / dist) * force;
+                        // Cross-product swirl (creates the spinning vortex flow)
+                        this.vx += (-dy / dist) * force * 1.8;
+                        this.vy += (dx / dist) * force * 1.8;
+                        // Accelerate color spectrum excitation inside fields
+                        this.hue = (this.hue + 1) % 360;
                     }
                 });
-
-                this.x += this.vx;
-                this.y += this.vy;
-                this.vx *= 0.98; // Friction
-                this.vy *= 0.98;
-
-                if (this.alpha <= 0 || this.x < -50 || this.x > width + 50 || this.y < -50 || this.y > height + 50) {
-                    this.reset();
-                }
+                this.vx *= 0.98; this.vy *= 0.98; // Hydrodynamic friction
+                this.x += this.vx; this.y += this.vy;
+                
+                // Screen boundary bouncing
+                if (this.x < 0 || this.x > width) this.vx *= -1;
+                if (this.y < 0 || this.y > height) this.vy *= -1;
             }
             draw() {
-                ctx.save();
-                ctx.globalAlpha = this.alpha;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = `hsl(${this.hue}, 100%, 70%)`;
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = `hsl(${this.hue}, 100%, 70%)`;
-                ctx.fill();
-                ctx.restore();
+                ctx.fillStyle = `hsl(${this.hue}, 100%, 65%)`;
+                ctx.fillRect(this.x, this.y, this.size, this.size);
             }
         }
 
-        // Initialize 600 particles for smooth physics performance
-        for (let i = 0; i < 600; i++) particles.push(new Particle());
+        // Initialize high density particle cluster
+        for (let i = 0; i < 2500; i++) {
+            particles.push(new Particle(Math.random() * width, Math.random() * height));
+        }
 
-        window.addEventListener('mousedown', (e) => spawnWell(e.clientX, e.clientY));
-        window.addEventListener('touchstart', (e) => spawnWell(e.touches[0].clientX, e.touches[0].clientY));
+        // Desktop Pointer Listeners
+        window.addEventListener('mousedown', (e) => {
+            isMouseDown = true; mouseX = e.clientX; mouseY = e.clientY;
+            if (e.button === 2) triggerExplosion(mouseX, mouseY);
+        });
+        window.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; });
+        window.addEventListener('mouseup', () => isMouseDown = false);
+        window.addEventListener('contextmenu', e => e.preventDefault()); // Disables boring browser right click menu
 
-        function spawnWell(x, y) {
-            wells.push({
-                x: x, y: y,
-                radius: 10,
-                gravityRange: 250,
-                strength: 0.8,
-                life: 180, // Frames alive
-                pulse: 0
+        // Mobile / Touch Interaction Support
+        window.addEventListener('touchstart', (e) => {
+            isMouseDown = true; mouseX = e.touches[0].clientX; mouseY = e.touches[0].clientY;
+        });
+        window.addEventListener('touchmove', (e) => { mouseX = e.touches[0].clientX; mouseY = e.touches[0].clientY; });
+        window.addEventListener('touchend', () => isMouseDown = false);
+
+        function triggerExplosion(x, y) {
+            particles.forEach(p => {
+                const dx = p.x - x; const dy = p.y - y;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                if (dist < 220) {
+                    const blast = (220 - dist) / 8;
+                    p.vx += (dx / dist) * blast;
+                    p.vy += (dy / dist) * blast;
+                    p.hue = Math.random() * 40; // Ignites particles into superheated reds/oranges
+                }
             });
-            lastWellTime = Date.now();
         }
 
         function loop() {
-            // Motion blur effect by drawing semi-transparent background
-            ctx.fillStyle = 'rgba(5, 5, 10, 0.2)';
+            // Semi-transparent overlay canvas clear produces a beautiful luminescent motion blur trail
+            ctx.fillStyle = 'rgba(5, 5, 16, 0.12)';
             ctx.fillRect(0, 0, width, height);
 
-            // Update & Draw Gravity Wells
-            for (let i = wells.length - 1; i >= 0; i--) {
-                let w = wells[i];
-                w.life--;
-                if (w.pulse > 0) w.pulse *= 0.9;
-
-                // Draw outer gravity ring
-                ctx.beginPath();
-                ctx.arc(w.x, w.y, w.gravityRange * (1 - w.life/180), 0, Math.PI * 2);
-                ctx.strokeStyle = `rgba(255, 0, 100, ${w.life / 360})`;
-                ctx.lineWidth = 1;
-                ctx.stroke();
-
-                // Draw central vortex singularity
-                ctx.beginPath();
-                ctx.arc(w.x, w.y, w.radius + w.pulse, 0, Math.PI * 2);
-                ctx.fillStyle = '#ff0055';
-                ctx.shadowBlur = 30;
-                ctx.shadowColor = '#ff0055';
-                ctx.fill();
-
-                if (w.life <= 0) wells.splice(i, 1);
+            // Manage active user vortex streams
+            if (isMouseDown) {
+                if (!vortexes.some(v => v.active)) {
+                    vortexes.push({ x: mouseX, y: mouseY, radius: 260, active: true });
+                } else {
+                    const activeV = vortexes.find(v => v.active);
+                    activeV.x = mouseX; activeV.y = mouseY;
+                }
+            } else {
+                vortexes.forEach(v => v.active = false);
             }
 
-            // Update & Draw Particles
+            // Cap the field trail memory depth so the screen doesn't over-saturate
+            if (vortexes.length > 5) vortexes.shift();
+
+            // Render sub-atomic gravitational gravity wells
+            vortexes.forEach(v => {
+                ctx.beginPath();
+                ctx.arc(v.x, v.y, v.active ? 25 : 12, 0, Math.PI * 2);
+                ctx.strokeStyle = v.active ? 'rgba(56, 189, 248, 0.25)' : 'rgba(168, 85, 247, 0.08)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+
+            // Physics Update Cycle
             particles.forEach(p => {
                 p.update();
                 p.draw();
             });
 
-            // Decaying combo system if no action happens
-            if (Date.now() - lastWellTime > 2000 && multiplier > 1) {
-                multiplier -= 0.05;
-                if (multiplier < 1) multiplier = 1;
-                multEl.innerText = multiplier.toFixed(1);
-            }
-
             requestAnimationFrame(loop);
         }
-
         loop();
     </script>
 </body>
