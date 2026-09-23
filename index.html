@@ -2,150 +2,174 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Glow Fluid Sandbox</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluid Particle Sandbox</title>
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background: #06060c; font-family: sans-serif; }
-        canvas { display: block; width: 100vw; height: 100vh; }
-        #ui { position: absolute; top: 15px; left: 15px; color: rgba(255,255,255,0.7); pointer-events: none; font-size: 13px; line-height: 1.6; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #080810; font-family: sans-serif; }
+        canvas { display: block; }
+        #ui { position: absolute; top: 15px; left: 15px; color: rgba(255,255,255,0.7); pointer-events: none; font-size: 14px; line-height: 1.5; }
+        h1 { margin: 0 0 5px 0; font-size: 18px; color: #fff; text-shadow: 0 0 10px #00f0ff; }
     </style>
 </head>
 <body>
     <div id="ui">
-        <strong style="color: #00ffcc; font-size: 16px;">FLUID SANDBOX</strong><br>
-        • <b>Click & Drag</b> to vortex and pull particles<br>
-        • <b>Fling / Swing</b> to launch them into each other<br>
-        • <b>Smash fast</b> to fracture them into smaller bits<br>
-        • <b>Hold together softly</b> to watch them merge back
+        <h1>Quantum Liquid Sandbox</h1>
+        • Click & Hold to pull and trap fluid particles<br>
+        • Throw/Swing particles to launch them with velocity<br>
+        • Smash big particles together at high speed to split them<br>
+        • Let them rest near each other to merge back together
     </div>
-    <canvas id="canvas"></canvas>
+    <canvas id="sandbox"></canvas>
 
     <script>
-        const canvas = document.getElementById('canvas');
+        const canvas = document.getElementById('sandbox');
         const ctx = canvas.getContext('2d');
+        
         let width = canvas.width = window.innerWidth;
         let height = canvas.height = window.innerHeight;
-        
         window.addEventListener('resize', () => { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; });
 
-        let mouse = { x: 0, y: 0, px: 0, py: 0, down: false };
-        window.addEventListener('mousemove', e => { mouse.px = mouse.x; mouse.py = mouse.y; mouse.x = e.clientX; mouse.y = e.clientY; });
-        window.addEventListener('mousedown', () => mouse.down = true);
-        window.addEventListener('mouseup', () => mouse.down = false);
+        const particles = [];
+        let mouse = { x: 0, y: 0, isDown: false, vx: 0, vy: 0, lastX: 0, lastY: 0 };
+        const FRICTION = 0.98;
+        const LIQUID_FORCE = 0.15;
 
         class Particle {
-            constructor(x, y, radius = Math.random() * 14 + 8, color = null) {
-                this.x = x; this.y = y; this.vx = (Math.random() - 0.5) * 4; this.vy = (Math.random() - 0.5) * 4;
-                this.radius = radius; this.mass = radius * radius;
-                this.color = color || `hsl(${Math.random() * 50 + 175}, 100%, 55%)`;
+            constructor(x, y, radius = Math.random() * 6 + 4, color = null) {
+                this.x = x; this.y = y;
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+                this.radius = radius;
+                this.mass = radius * radius;
+                this.color = color || `hsl(${Math.random() * 60 + 180}, 100%, 60%)`;
             }
             update() {
-                this.vx *= 0.97; this.vy *= 0.97; // Fluid friction / viscosity
-                this.vy += 0.04; // Micro-gravity for fluid-like settling
+                if (mouse.isDown) {
+                    let dx = mouse.x - this.x;
+                    let dy = mouse.y - this.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 180) {
+                        // Drag behavior: Lock closely to mouse speed if very near, otherwise pull fluidly
+                        let pull = (180 - dist) / 180;
+                        this.vx += (dx / dist) * pull * LIQUID_FORCE + (mouse.vx * 0.1);
+                        this.vy += (dy / dist) * pull * LIQUID_FORCE + (mouse.vy * 0.1);
+                        this.vx *= 0.92; this.vy *= 0.92; // Lock dampened drag
+                    }
+                }
+                this.vx *= FRICTION; this.vy *= FRICTION;
                 this.x += this.vx; this.y += this.vy;
-                
-                // Elastic wall boundaries
-                if (this.x < this.radius) { this.x = this.radius; this.vx *= -0.7; }
-                if (this.x > width - this.radius) { this.x = width - this.radius; this.vx *= -0.7; }
-                if (this.y < this.radius) { this.y = this.radius; this.vy *= -0.7; }
-                if (this.y > height - this.radius) { this.y = height - this.radius; this.vy *= -0.7; }
+                // Wall boundaries
+                if (this.x < this.radius) { this.x = this.radius; this.vx *= -0.6; }
+                if (this.x > width - this.radius) { this.x = width - this.radius; this.vx *= -0.6; }
+                if (this.y < this.radius) { this.y = this.radius; this.vy *= -0.6; }
+                if (this.y > height - this.radius) { this.y = height - this.radius; this.vy *= -0.6; }
             }
             draw() {
                 ctx.beginPath();
+                let speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 ctx.fillStyle = this.color;
-                ctx.shadowBlur = this.radius * 1.5;
+                ctx.shadowBlur = speed * 2 + 5;
                 ctx.shadowColor = this.color;
                 ctx.fill();
             }
         }
 
-        let particles = Array.from({ length: 55 }, () => new Particle(Math.random() * width, Math.random() * height));
+        // Spawn initial fluid particles
+        for (let i = 0; i < 250; i++) {
+            particles.push(new Particle(Math.random() * width, Math.random() * height));
+        }
 
-        function loop() {
-            ctx.fillStyle = 'rgba(6, 6, 12, 0.25)'; // Motion blur trailing effect
-            ctx.shadowBlur = 0;
-            ctx.fillRect(0, 0, width, height);
-
-            // Dragging pulls fluid environment
-            if (mouse.down) {
-                let mvx = mouse.x - mouse.px;
-                let mvy = mouse.y - mouse.py;
-                particles.forEach(p => {
-                    let dx = mouse.x - p.x;
-                    let dy = mouse.y - p.y;
-                    let dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                    if (dist < 280) {
-                        let force = (280 - dist) / 280;
-                        // Combines pull towards cursor + mouse momentum transfer
-                        p.vx += (dx / dist) * force * 0.7 + mvx * force * 0.35;
-                        p.vy += (dy / dist) * force * 0.7 + mvy * force * 0.35;
-                    }
-                });
-            }
-
-            // Spatial Physics & Particle Collisions
+        function handleCollisions() {
             for (let i = 0; i < particles.length; i++) {
-                let p1 = particles[i];
-                p1.update();
-
                 for (let j = i + 1; j < particles.length; j++) {
-                    let p2 = particles[j];
-                    let dx = p2.x - p1.x;
-                    let dy = p2.y - p1.y;
-                    let dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    let p1 = particles[i]; let p2 = particles[j];
+                    let dx = p2.x - p1.x; let dy = p2.y - p1.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
                     let minDist = p1.radius + p2.radius;
 
-                    // Smooth Merging Window (When pushed together closely and slowly)
-                    if (dist < minDist + 12 && mouse.down) {
-                        let relSpd = Math.abs(p1.vx - p2.vx) + Math.abs(p1.vy - p2.vy);
-                        if (relSpd < 2.5 && p1.radius < 40 && p2.radius < 40) {
-                            p1.radius = Math.sqrt(p1.mass + p2.mass);
-                            p1.mass = p1.radius * p1.radius;
-                            particles.splice(j, 1);
-                            j--;
+                    if (dist < minDist + 12) { 
+                        let relativeSpeed = Math.sqrt((p1.vx - p2.vx)**2 + (p1.vy - p2.vy)**2);
+                        
+                        // SPLIT MECHANIC: High velocity collision breaks them up
+                        if (relativeSpeed > 14 && dist < minDist && (p1.radius > 5 || p2.radius > 5)) {
+                            if (p1.radius > 5) splitParticle(p1, i);
+                            if (p2.radius > 5) splitParticle(p2, j);
                             continue;
                         }
-                    }
-
-                    // Solid Collision Handling
-                    if (dist < minDist) {
-                        let overlap = minDist - dist;
-                        let nx = dx / dist;
-                        let ny = dy / dist;
-
-                        // Separate overlapping particles immediately
-                        p1.x -= nx * overlap * 0.5; p1.y -= ny * overlap * 0.5;
-                        p2.x += nx * overlap * 0.5; p2.y += ny * overlap * 0.5;
-
-                        // Calculate relative velocities along the normal vector
-                        let rvx = p2.vx - p1.vx;
-                        let rvy = p2.vy - p1.vy;
-                        let speed = rvx * nx + rvy * ny;
-
-                        if (speed < 0) {
-                            let impulse = (2 * speed) / (p1.mass + p2.mass);
-                            p1.vx += impulse * p2.mass * nx; p1.vy += impulse * p2.mass * ny;
-                            p2.vx -= impulse * p1.mass * nx; p2.vy -= impulse * p1.mass * ny;
-
-                            // Smash / Fracture Trigger
-                            let smashImpact = Math.abs(speed);
-                            if (smashImpact > 11 && (p1.radius > 6 || p2.radius > 6)) {
-                                if (p1.radius > 6) {
-                                    particles.push(new Particle(p1.x + (Math.random() - 0.5) * 8, p1.y + (Math.random() - 0.5) * 8, p1.radius * 0.55, p1.color));
-                                    p1.radius *= 0.55; p1.mass = p1.radius * p1.radius;
-                                }
-                                if (p2.radius > 6) {
-                                    particles.push(new Particle(p2.x + (Math.random() - 0.5) * 8, p2.y + (Math.random() - 0.5) * 8, p2.radius * 0.55, p2.color));
-                                    p2.radius *= 0.55; p2.mass = p2.radius * p2.radius;
-                                }
+                        // MERGE MECHANIC: Slow movement merges them together
+                        if (relativeSpeed < 2.5 && dist < minDist * 0.8) {
+                            let newRadius = Math.sqrt(p1.mass + p2.mass);
+                            if (newRadius < 45) { // Cap max size
+                                p1.radius = newRadius; p1.mass = p1.radius * p1.radius;
+                                p1.x = (p1.x * p1.mass + p2.x * p2.mass) / (p1.mass + p2.mass);
+                                p1.y = (p1.y * p1.mass + p2.y * p2.mass) / (p1.mass + p2.mass);
+                                particles.splice(j, 1); j--;
+                                continue;
                             }
+                        }
+                        // Liquid fluid push & standard elastic bounce
+                        if (dist < minDist) {
+                            let overlap = minDist - dist;
+                            let nx = dx / dist; let ny = dy / dist;
+                            p1.x -= nx * overlap * 0.5; p1.y -= ny * overlap * 0.5;
+                            p2.x += nx * overlap * 0.5; p2.y += ny * overlap * 0.5;
+                            let kx = p1.vx - p2.vx; let ky = p1.vy - p2.vy;
+                            let p = 2 * (nx * kx + ny * ky) / (p1.mass + p2.mass);
+                            p1.vx -= p * p2.mass * nx; p1.vy -= p * p2.mass * ny;
+                            p2.vx += p * p1.mass * nx; p2.vy += p * p1.mass * ny;
                         }
                     }
                 }
-                p1.draw();
             }
+        }
+
+        function splitParticle(p, index) {
+            let numBits = Math.floor(Math.random() * 3) + 2;
+            let newRadius = p.radius / Math.sqrt(numBits);
+            if (newRadius < 3) return;
+            particles.splice(index, 1);
+            for (let k = 0; k < numBits; k++) {
+                let angle = Math.random() * Math.PI * 2;
+                let speed = Math.random() * 8 + 5;
+                let bit = new Particle(p.x + Math.cos(angle)*p.radius, p.y + Math.sin(angle)*p.radius, newRadius, p.color);
+                bit.vx = p.vx + Math.cos(angle) * speed;
+                bit.vy = p.vy + Math.sin(angle) * speed;
+                particles.push(bit);
+            }
+        }
+
+        function loop() {
+            ctx.fillStyle = 'rgba(8, 8, 16, 0.3)'; // Trail effect for fluid motion
+            ctx.fillRect(0, 0, width, height);
+            ctx.shadowBlur = 0;
+
+            // Calculate mouse velocity for swinging kinetic energy
+            mouse.vx = mouse.x - mouse.lastX; mouse.vy = mouse.y - mouse.lastY;
+            mouse.lastX = mouse.x; mouse.lastY = mouse.y;
+
+            handleCollisions();
+
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
             requestAnimationFrame(loop);
         }
+
+        // Mouse & Touch Controls
+        const updateMouse = (e) => {
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            mouse.x = clientX; mouse.y = clientY;
+        };
+        window.addEventListener('mousedown', (e) => { mouse.isDown = true; updateMouse(e); mouse.lastX = mouse.x; mouse.lastY = mouse.y; });
+        window.addEventListener('mousemove', updateMouse);
+        window.addEventListener('mouseup', () => mouse.isDown = false);
+        window.addEventListener('touchstart', (e) => { mouse.isDown = true; updateMouse(e); mouse.lastX = mouse.x; mouse.lastY = mouse.y; }, {passive: false});
+        window.addEventListener('touchmove', updateMouse, {passive: false});
+        window.addEventListener('touchend', () => mouse.isDown = false);
+
         loop();
     </script>
 </body>
