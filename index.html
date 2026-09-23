@@ -2,141 +2,213 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Sub-Sector 7: Terminal</title>
+    <title>TERMINAL_OS: ECLIPSE</title>
     <style>
-        body { background: #0b0d10; color: #a3b8cc; font-family: monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        #terminal { width: 620px; background: #12161c; border: 1px solid #2a3644; border-radius: 6px; padding: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.6); }
-        h1 { color: #4fc3f7; margin: 0 0 15px 0; font-size: 1.3rem; letter-spacing: 2px; text-transform: uppercase; border-bottom: 1px solid #2a3644; padding-bottom: 10px; }
-        #log { height: 240px; overflow-y: auto; margin-bottom: 20px; padding: 12px; background: #07090c; border-radius: 4px; font-size: 0.9rem; line-height: 1.6; border: 1px solid #1a222a; }
-        .msg { margin-bottom: 10px; opacity: 0; animation: fadeIn 0.4s forwards; }
-        .sys { color: #64e572; } .story { color: #e0e0e0; } .warn { color: #ff5252; } .intel { color: #b388ff; }
-        #stats { display: flex; justify-content: space-between; background: #1a2129; padding: 12px 16px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #25313e; font-size: 0.9rem; }
-        .val { color: #ffffff; font-weight: bold; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        button { background: #1f2731; border: 1px solid #3b4e66; color: #e0e0e0; padding: 14px; font-family: monospace; font-size: 0.85rem; cursor: pointer; border-radius: 4px; transition: all 0.25s; text-align: left; }
-        button:hover:not(:disabled) { background: #2a3644; border-color: #4fc3f7; color: #fff; box-shadow: 0 0 8px rgba(79,195,247,0.2); }
-        button:disabled { opacity: 0.25; cursor: not-allowed; border-color: #222a33; }
-        @keyframes fadeIn { to { opacity: 1; } }
+        body { background: #0a0f0d; color: #39ff14; font-family: monospace; padding: 20px; user-select: none; }
+        #terminal { max-width: 700px; margin: 0 auto; background: #050806; border: 2px solid #39ff14; padding: 20px; box-shadow: 0 0 15px rgba(57,255,20,0.2); }
+        .bar-container { background: #1a231e; border: 1px solid #39ff14; height: 20px; margin: 10px 0; position: relative; }
+        .bar { background: #39ff14; height: 100%; width: 100%; transition: width 0.1s linear; }
+        .danger { background: #ff3333 !important; }
+        button { background: #111; color: #39ff14; border: 1px solid #39ff14; padding: 8px 16px; cursor: pointer; font-family: monospace; font-size: 14px; margin: 5px 2px; }
+        button:hover:not(:disabled) { background: #39ff14; color: #000; }
+        button:disabled { border-color: #224422; color: #224422; cursor: not-allowed; }
+        #log { height: 120px; overflow-y: auto; border: 1px solid #1a231e; padding: 8px; background: #020403; font-size: 13px; margin: 15px 0; color: #88ee88; }
+        #alert-zone { background: #220000; border: 1px dashed #ff3333; padding: 10px; margin: 15px 0; display: none; color: #ff3333; }
+        input[type="text"] { background: #000; border: 1px solid #ff3333; color: #ff3333; padding: 5px; font-family: monospace; width: 150px; }
     </style>
 </head>
 <body>
 <div id="terminal">
-    <h1>Sub-Sector 7 // Core Terminal</h1>
-    <div id="stats">
-        <div>GRID POWER: <span id="power" class="val">100</span>%</div>
-        <div>DATA ARCHIVED: <span id="data" class="val">0</span> / 100 TB</div>
-        <div>SCRAPER BOTS: <span id="bots" class="val">0</span></div>
-    </div>
-    <div id="log"></div>
-    <div class="grid">
-        <button id="btn-scan" onclick="manualScan()">[F1] Run Manual Defrag</button>
-        <button id="btn-bot" onclick="compileBot()" disabled>[F2] Compile Background Scraper (Cost: 15 TB)</button>
-        <button id="btn-power" onclick="divertPower()" disabled>[F3] Route Emergency Cells</button>
-        <button id="btn-transmit" onclick="transmitPayload()" disabled>[F4] Transmit Final Broadcast</button>
-    </div>
-</div>
-<script>
-    let game = { power: 100, data: 0, bots: 0, phase: 0, active: true };
-    const logBox = document.getElementById('log');
+    <h2>[SYS_RECOVERY_V2.0.6]</h2>
+    <p>Target: <b>10,000 Terabytes</b> for deep-space broadcast extraction.</p>
     
-    const narrative = [
-        "System initiated. Deep space monitoring platform is dark. Local beacon integrity: Critical.",
-        "Sensing pulse anomaly. A massive structural void is slowly drifting past your radar array.",
-        "The anomaly changed vectors. It detected the terminal's data signature. Accelerate recovery.",
-        "Internal heat exchangers failing due to external radiation pressure. The core is venting.",
-        "Archive compilation complete. Sub-Sector 7 history locked down. Long-range array fully primed."
+    <div>DATA EXTRACTED: <span id="data-display" style="font-weight:bold; font-size:18px;">0</span> / 10,000 TB</div>
+    <div>ACTIVE BOTS: <span id="bots-display">0</span> (Extracting <span id="bps-display">0</span> TB/s)</div>
+    
+    <div style="margin-top: 15px;">GRID ENERGY:</div>
+    <div class="bar-container"><div id="energy-bar" class="bar"></div></div>
+    <div>Drain Rate: <span id="drain-display">2.0</span> MW/s</div>
+
+    <div style="margin: 20px 0;">
+        <button id="btn-defrag" onclick="manualDefrag()">[ MANUAL DEFRAG (+10 TB) ]</button>
+        <button id="btn-bot" onclick="buyBot()">[ BUILD SCRAPER BOT (Cost: 100 TB) ]</button>
+        <button id="btn-power" onclick="routePower()">[ ROUTE AUX POWER (+30% Energy) ]</button>
+    </div>
+
+    <div id="alert-zone">
+        <b id="alert-title">CRITICAL ERROR</b><br>
+        <span id="alert-desc"></span><br><br>
+        <div id="alert-action"></div>
+    </div>
+
+    <div id="log"></div>
+</div>
+
+<script>
+    let state = { data: 0, bots: 0, energy: 100, target: 10,000, activeEvent: null, eventTimer: 0, totalTicks: 0 };
+    const logEl = document.getElementById('log');
+
+    function log(msg, color = '#88ee88') {
+        logEl.innerHTML += `<div style="color: ${color}">> ${msg}</div>`;
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function manualDefrag() {
+        if (state.activeEvent === 'LOCKOUT') return log("ERROR: Keyboard system locked by anomaly!", "#ff3333");
+        state.data += 10;
+        if (state.activeEvent === 'GLITCH' && Math.random() < 0.4) {
+            state.data = Math.max(0, state.data - 25);
+            log("Glitch flipped your bits! Lost 25 TB!", "#ff3333");
+        } else {
+            log("Manual sectors aligned. Gathered 10 TB.");
+        }
+        updateUI();
+    }
+
+    function buyBot() {
+        let cost = 100 + Math.floor(state.bots * 45);
+        if (state.data >= cost) {
+            state.data -= cost;
+            state.bots++;
+            log(`Scraper Bot #${state.bots} deployed online.`, "#39ff14");
+            updateUI();
+        }
+    }
+
+    function routePower() {
+        if (state.activeEvent === 'OVERLOAD') return log("ERROR: Breakers fried. Cannot route power!", "#ff3333");
+        state.energy = Math.min(100, state.energy + 30);
+        log("Auxiliary capacitors discharged into the main frame.", "#39ff14");
+        updateUI();
+    }
+
+    const EVENTS = [
+        {
+            id: 'OVERLOAD',
+            title: '⚡ GRID OVERLOAD DETECTED',
+            desc: 'The power routing grid is melted shut. Click the bypass valve repeatedly to release pressure!',
+            start: () => { state.eventTimer = 12; },
+            render: () => `<button onclick="resolveEvent('OVERLOAD')">PUMP BYPASS VALVE</button> (Required: 8 clicks)`,
+            work: () => { 
+                state.eventTimer--; 
+                if (!state.eventWork) state.eventWork = 0;
+                state.eventWork++;
+                if (state.eventWork >= 8) endEvent("Grid cleared. Power routing systems operational.");
+            }
+        },
+        {
+            id: 'GLITCH',
+            title: '👾 MATRIX GLITCH IN PROGRESS',
+            desc: 'Corrupted data cycles are active. Manual defrags might delete data instead! Type the flush code:',
+            start: () => { 
+                state.eventTimer = 15; 
+                state.eventWork = Math.floor(1000 + Math.random() * 9000).toString(16).toUpperCase();
+            },
+            render: () => `Type <b>${state.eventWork}</b>: <input type="text" id="ev-input" oninput="checkGlitchCode(this.value)">`,
+            work: () => {}
+        },
+        {
+            id: 'LOCKOUT',
+            title: '🔒 SECURITY COLD-LOCK',
+            desc: 'Main terminal buttons are locked out. Cut the primary processing wire by typing exactly "CUT WIRE"',
+            start: () => { state.eventTimer = 15; },
+            render: () => `<input type="text" id="ev-input" placeholder="Type command..." oninput="if(this.value.toUpperCase()==='CUT WIRE') endEvent('Lockout bypassed!');">`,
+            work: () => {}
+        }
     ];
 
-    function printLog(text, style = 'story') {
-        const line = document.createElement('div');
-        line.className = `msg ${style}`;
-        line.innerText = `> ${text}`;
-        logBox.appendChild(line);
-        logBox.scrollTop = logBox.scrollHeight;
+    function checkGlitchCode(val) {
+        if (val.toUpperCase() === state.eventWork) endEvent("Cache cleared. Matrix stabilized.");
     }
 
-    function refreshUI() {
-        document.getElementById('power').innerText = Math.max(0, Math.floor(game.power));
-        document.getElementById('data').innerText = Math.min(100, Math.floor(game.data));
-        document.getElementById('bots').innerText = game.bots;
+    function resolveEvent(id) {
+        let ev = EVENTS.find(e => e.id === id);
+        if (ev) ev.work();
+    }
+
+    function triggerRandomEvent() {
+        if (state.activeEvent) return;
+        let ev = EVENTS[Math.floor(Math.random() * EVENTS.length)];
+        state.activeEvent = ev.id;
+        state.eventWork = null;
+        ev.start();
+        document.getElementById('alert-zone').style.display = 'block';
+        document.getElementById('alert-title').innerText = ev.title;
+        document.getElementById('alert-desc').innerText = ev.desc;
+        document.getElementById('alert-action').innerHTML = ev.render();
+        log(`WARNING: Emergency event initiated: ${ev.title}`, "#ff3333");
+    }
+
+    function endEvent(msg) {
+        state.activeEvent = null;
+        document.getElementById('alert-zone').style.display = 'none';
+        log(msg, "#39ff14");
+        updateUI();
+    }
+
+    function updateUI() {
+        document.getElementById('data-display').innerText = state.data.toLocaleString();
+        let botCost = 100 + Math.floor(state.bots * 45);
+        document.getElementById('btn-bot').innerText = `[ BUILD SCRAPER BOT (Cost: ${botCost} TB) ]`;
+        document.getElementById('btn-bot').disabled = state.data < botCost;
+        document.getElementById('bots-display').innerText = state.bots;
+        document.getElementById('bps-display').innerText = state.bots * 4;
         
-        document.getElementById('btn-scan').disabled = !game.active || game.phase >= 4;
-        document.getElementById('btn-bot').disabled = !game.active || game.data < 15 || game.phase >= 4;
-        document.getElementById('btn-power').disabled = !game.active || game.power >= 40 || game.phase >= 4;
-        document.getElementById('btn-transmit').disabled = !game.active || game.data < 100 || game.phase !== 4;
-    }
-
-    function manualScan() {
-        if (!game.active) return;
-        if (game.power <= 4) {
-            printLog("Action denied: Insufficient voltage to cycle main sensor bus.", "warn");
-            return;
-        }
-        game.data = Math.min(100, game.data + 2.5);
-        game.power -= 4;
-        printLog("Local sector swept. +2.5 TB recovered.", "sys");
-        evaluateProgress();
-        refreshUI();
-    }
-
-    function compileBot() {
-        if (game.data >= 15) {
-            game.data -= 15;
-            game.bots++;
-            printLog("Automated daemon compiled. Background scraping sequence initialized.", "sys");
-            refreshUI();
-        }
-    }
-
-    function divertPower() {
-        if (game.power >= 40) return;
-        game.power = Math.min(100, game.power + 30);
-        printLog("Auxiliary capacitors flushed. Main grid replenished (+30% Power).", "intel");
-        refreshUI();
-    }
-
-    function evaluateProgress() {
-        let oldPhase = game.phase;
-        if (game.data >= 100) game.phase = 4;
-        else if (game.data >= 70) game.phase = 3;
-        else if (game.data >= 40) game.phase = 2;
-        else if (game.data >= 15) game.phase = 1;
-
-        if (game.phase !== oldPhase) {
-            printLog(narrative[game.phase], 'intel');
-        }
-    }
-
-    function transmitPayload() {
-        game.active = false;
-        document.querySelector('.grid').innerHTML = "<div style='grid-column: span 2; text-align: center; color: #64e572; font-weight: bold; padding: 10px;'>TRANSMISSION SUCCESSFUL. DATA IMMORTALIZED. LOGGING OFF...</div>";
-        printLog("Uploading entire sub-sector history directly to the deep-space core... Connection safely severed.", "sys");
-        refreshUI();
-    }
-
-    setInterval(() => {
-        if (!game.active || game.phase === 4) return;
+        let eBar = document.getElementById('energy-bar');
+        eBar.style.width = `${state.energy}%`;
+        if (state.energy < 30) eBar.classList.add('danger');
+        else eBar.classList.remove('danger');
         
-        // Passive power drain scales up with more automated background scrapers running
-        let passiveDrain = 0.5 + (game.bots * 0.2);
-        game.power -= passiveDrain;
+        let baseDrain = 2.0;
+        let scalingDrain = baseDrain + (state.bots * 0.8) + (state.totalTicks * 0.015);
+        document.getElementById('drain-display').innerText = scalingDrain.toFixed(2);
+    }
+
+    // Main Game loop running at 1-second intervals
+    const loop = setInterval(() => {
+        state.totalTicks++;
         
-        if (game.bots > 0) {
-            game.data = Math.min(100, game.data + (game.bots * 0.4));
-            evaluateProgress();
-        }
+        // Dynamic scaling difficulty
+        let baseDrain = 2.0;
+        let scalingDrain = baseDrain + (state.bots * 0.8) + (state.totalTicks * 0.015);
         
-        if (game.power <= 0) {
-            game.power = 0;
-            game.active = false;
-            document.querySelector('.grid').innerHTML = "<div style='grid-column: span 2; text-align: center; color: #ff5252; font-weight: bold; padding: 10px;'>TERMINAL TERMINATED - LIFE SUPPORT FAILURE</div>";
-            printLog("Total life support, logic buffers, and memory vaults collapsed. You are lost to the black.", "warn");
+        // Passive gathering and energy depletion
+        state.data += state.bots * 4;
+        state.energy -= scalingDrain;
+
+        // Process active event countdowns
+        if (state.activeEvent) {
+            state.eventTimer--;
+            let alertDesc = EVENTS.find(e => e.id === state.activeEvent).desc;
+            document.getElementById('alert-desc').innerText = `${alertDesc} (TIME REMAINING: ${state.eventTimer}s)`;
+            
+            if (state.eventTimer <= 0) {
+                state.energy -= 40;
+                endEvent("CRITICAL FAILURE: Event timer expired! Massive grid damage sustained (-40% Energy).");
+            }
+        } else if (state.totalTicks > 5 && Math.random() < 0.12) {
+            triggerRandomEvent();
         }
-        refreshUI();
+
+        // Win / Loss conditions
+        if (state.energy <= 0) {
+            state.energy = 0;
+            updateUI();
+            log("CRITICAL: GRID POWER ZERO. SYSTEM SHUTTING DOWN permanently.", "#ff3333");
+            alert("SYSTEM COLLAPSE: The terminal ran out of juice. Your transmissions fade out into the dark universe. GAME OVER.");
+            clearInterval(loop);
+        } else if (state.data >= 10000) {
+            updateUI();
+            log("SUCCESS: 10,000 TB EXTRACTED. Broadcast sequence activated!", "#39ff14");
+            alert("VICTORY! Against compounding grid rot and endless system alerts, you completely defragged the core sectors and beamed the emergency message home!");
+            clearInterval(loop);
+        } else {
+            updateUI();
+        }
     }, 1000);
 
-    printLog(narrative[0], 'story');
-    refreshUI();
+    log("Terminal initialized. Core connection established. Begin data harvest.");
+    updateUI();
 </script>
 </body>
 </html>
