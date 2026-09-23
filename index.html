@@ -3,144 +3,158 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Orbit Surge</title>
+    <title>Neon Cosmos: Particle Physics Sandbox</title>
     <style>
-        body { margin: 0; background: #0a0a12; color: #fff; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
-        canvas { background: #111122; box-shadow: 0 0 30px rgba(0, 255, 200, 0.2); border-radius: 10px; display: block; }
-        #ui { position: absolute; top: 20px; text-align: center; pointer-events: none; width: 100%; }
-        h1 { margin: 0; font-size: 24px; color: #00ffcc; text-shadow: 0 0 10px #00ffcc; }
-        p { margin: 5px 0; font-size: 14px; color: #888a9e; }
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #05050a; font-family: monospace; user-select: none; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        #ui { position: absolute; top: 20px; left: 20px; color: #00ffcc; font-size: 18px; pointer-events: none; text-shadow: 0 0 10px #00ffcc; }
+        #instructions { position: absolute; bottom: 20px; width: 100%; text-align: center; color: #444477; font-size: 14px; pointer-events: none; }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <h1 id="score">0</h1>
-        <p id="hint">Hold MOUSE or TOUCH screen to expand your orbit. Dodge the red meteors!</p>
-    </div>
-    <canvas id="game" width="600" height="600"></canvas>
+    <div id="ui">SCORE: <span id="score">0</span> | MULTIPLIER: x<span id="mult">1</span></div>
+    <div id="instructions">CLICK & HOLD TO CREATE GRAVITY WELLS — TRAP PARTICLES FOR MASSIVE CHAIN REACTIONS</div>
+    <canvas id="canvas"></canvas>
+
     <script>
-        const canvas = document.getElementById('game');
+        const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
-        const hintEl = document.getElementById('hint');
+        const multEl = document.getElementById('mult');
 
-        let score = 0, highScore = 0, gameOver = false;
-        let player = { angle: 0, radius: 80, targetRadius: 80, size: 8, color: '#00ffcc' };
-        let obstacles = [];
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+        
         let particles = [];
-        let spawnRate = 60, frameCount = 0;
+        let wells = [];
+        let score = 0;
+        let multiplier = 1;
+        let lastWellTime = 0;
 
-        let isPressing = false;
-        window.addEventListener('mousedown', () => isPressing = true);
-        window.addEventListener('mouseup', () => isPressing = false);
-        window.addEventListener('touchstart', (e) => { e.preventDefault(); isPressing = true; });
-        window.addEventListener('touchend', () => isPressing = false);
-        window.addEventListener('keydown', (e) => { if(e.code === 'Space' && gameOver) reset(); });
+        window.addEventListener('resize', () => { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; });
 
-        function reset() {
-            score = 0; gameOver = false; obstacles = []; particles = [];
-            player.radius = 80; player.angle = 0; scoreEl.textContent = '0';
-            hintEl.innerHTML = "Hold MOUSE/SCREEN to expand orbit.";
-            loop();
-        }
-
-        function spawnObstacle() {
-            let side = Math.floor(Math.random() * 4);
-            let x, y;
-            if (side === 0) { x = Math.random() * canvas.width; y = -20; }
-            else if (side === 1) { x = canvas.width + 20; y = Math.random() * canvas.height; }
-            else if (side === 2) { x = Math.random() * canvas.width; y = canvas.height + 20; }
-            else { x = -20; y = Math.random() * canvas.height; }
-            
-            let angleToCenter = Math.atan2(canvas.height/2 - y, canvas.width/2 - x);
-            let speed = 2 + Math.random() * 3 + (score * 0.1);
-            obstacles.push({
-                x, y,
-                vx: Math.cos(angleToCenter) * speed,
-                vy: Math.sin(angleToCenter) * speed,
-                size: 6 + Math.random() * 10,
-                color: '#ff3366'
-            });
-        }
-
-        function createExplosion(x, y, color) {
-            for(let i=0; i<15; i++) {
-                particles.push({
-                    x, y,
-                    vx: (Math.random() - 0.5) * 8,
-                    vy: (Math.random() - 0.5) * 8,
-                    size: Math.random() * 4 + 1,
-                    alpha: 1,
-                    color
-                });
+        class Particle {
+            constructor() {
+                this.reset();
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
             }
+            reset() {
+                this.x = Math.random() > 0.5 ? 0 : width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 4;
+                this.vy = (Math.random() - 0.5) * 4;
+                this.radius = Math.random() * 2 + 1;
+                this.hue = Math.random() * 60 + 180; // Cyan to Purple
+                this.alpha = 1;
+                this.isCaptured = false;
+            }
+            update() {
+                wells.forEach(well => {
+                    const dx = well.x - this.x;
+                    const dy = well.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < well.radius) {
+                        if (!this.isCaptured) {
+                            this.isCaptured = true;
+                            score += Math.floor(10 * multiplier);
+                            multiplier += 0.1;
+                            scoreEl.innerText = score;
+                            multEl.innerText = multiplier.toFixed(1);
+                            well.pulse = 15;
+                        }
+                        this.alpha -= 0.05;
+                    } else if (dist < well.gravityRange) {
+                        // Physics forces: Gravity pull + Orbit swirl force
+                        const force = (well.gravityRange - dist) / well.gravityRange * well.strength;
+                        this.vx += (dx / dist) * force + (-dy / dist) * (force * 0.5);
+                        this.vy += (dy / dist) * force + (dx / dist) * (force * 0.5);
+                        this.hue += 1; // Color shifts as it gets pulled
+                    }
+                });
+
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vx *= 0.98; // Friction
+                this.vy *= 0.98;
+
+                if (this.alpha <= 0 || this.x < -50 || this.x > width + 50 || this.y < -50 || this.y > height + 50) {
+                    this.reset();
+                }
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `hsl(${this.hue}, 100%, 70%)`;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = `hsl(${this.hue}, 100%, 70%)`;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Initialize 600 particles for smooth physics performance
+        for (let i = 0; i < 600; i++) particles.push(new Particle());
+
+        window.addEventListener('mousedown', (e) => spawnWell(e.clientX, e.clientY));
+        window.addEventListener('touchstart', (e) => spawnWell(e.touches[0].clientX, e.touches[0].clientY));
+
+        function spawnWell(x, y) {
+            wells.push({
+                x: x, y: y,
+                radius: 10,
+                gravityRange: 250,
+                strength: 0.8,
+                life: 180, // Frames alive
+                pulse: 0
+            });
+            lastWellTime = Date.now();
         }
 
         function loop() {
-            if (gameOver) return;
-            frameCount++;
-            ctx.fillStyle = 'rgba(17, 17, 34, 0.3)'; // Creates premium vector motion blur trail
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Motion blur effect by drawing semi-transparent background
+            ctx.fillStyle = 'rgba(5, 5, 10, 0.2)';
+            ctx.fillRect(0, 0, width, height);
 
-            // Center black hole
-            ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, 20, 0, Math.PI * 2);
-            ctx.fillStyle = '#1a1a3a'; ctx.fill();
-            ctx.strokeStyle = '#333355'; ctx.lineWidth = 2; ctx.stroke();
+            // Update & Draw Gravity Wells
+            for (let i = wells.length - 1; i >= 0; i--) {
+                let w = wells[i];
+                w.life--;
+                if (w.pulse > 0) w.pulse *= 0.9;
 
-            // Visual guide tracks
-            ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, 80, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(255,255,255,0.03)'; ctx.stroke();
-            ctx.beginPath(); ctx.arc(canvas.width/2, canvas.height/2, 180, 0, Math.PI * 2);
-            ctx.stroke();
+                // Draw outer gravity ring
+                ctx.beginPath();
+                ctx.arc(w.x, w.y, w.gravityRange * (1 - w.life/180), 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 0, 100, ${w.life / 360})`;
+                ctx.lineWidth = 1;
+                ctx.stroke();
 
-            // Elastic inner/outer orbit math
-            player.targetRadius = isPressing ? 180 : 80;
-            player.radius += (player.targetRadius - player.radius) * 0.15;
-            player.angle += 0.05 + (score * 0.001);
+                // Draw central vortex singularity
+                ctx.beginPath();
+                ctx.arc(w.x, w.y, w.radius + w.pulse, 0, Math.PI * 2);
+                ctx.fillStyle = '#ff0055';
+                ctx.shadowBlur = 30;
+                ctx.shadowColor = '#ff0055';
+                ctx.fill();
 
-            let px = canvas.width / 2 + Math.cos(player.angle) * player.radius;
-            let py = canvas.height / 2 + Math.sin(player.angle) * player.radius;
-
-            // Draw Neon Player
-            ctx.beginPath(); ctx.arc(px, py, player.size, 0, Math.PI * 2);
-            ctx.fillStyle = player.color; ctx.shadowBlur = 15; ctx.shadowColor = player.color; ctx.fill(); ctx.shadowBlur = 0;
-
-            // Manage Meteors
-            if (frameCount % Math.max(15, Math.floor(spawnRate - score * 0.5)) === 0) spawnObstacle();
-
-            for (let i = obstacles.length - 1; i >= 0; i--) {
-                let o = obstacles[i];
-                o.x += o.vx; o.y += o.vy;
-
-                // Draw Meteor
-                ctx.beginPath(); ctx.arc(o.x, o.y, o.size, 0, Math.PI * 2);
-                ctx.fillStyle = o.color; ctx.shadowBlur = 10; ctx.shadowColor = o.color; ctx.fill(); ctx.shadowBlur = 0;
-
-                // Hit Detection
-                let dx = o.x - px, dy = o.y - py;
-                if (Math.sqrt(dx*dx + dy*dy) < o.size + player.size) {
-                    gameOver = true;
-                    createExplosion(px, py, player.color);
-                    createExplosion(o.x, o.y, o.color);
-                    highScore = Math.max(score, highScore);
-                    hintEl.innerHTML = `GAME OVER<br>Score: ${score} | High: ${highScore}<br><br><span style="color:#00ffcc;cursor:pointer;" onclick="reset()">Click here or Press SPACE to restart</span>`;
-                }
-
-                // Score on escape
-                if (o.x < -50 || o.x > canvas.width + 50 || o.y < -50 || o.y > canvas.height + 50) {
-                    obstacles.splice(i, 1);
-                    if (!gameOver) { score++; scoreEl.textContent = score; }
-                }
+                if (w.life <= 0) wells.splice(i, 1);
             }
 
-            // Particle Updates
-            for(let i = particles.length - 1; i >= 0; i--) {
-                let p = particles[i]; p.x += p.vx; p.y += p.vy; p.alpha -= 0.02;
-                if(p.alpha <= 0) { particles.splice(i, 1); continue; }
-                ctx.fillStyle = p.color; ctx.globalAlpha = p.alpha;
-                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            // Update & Draw Particles
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            // Decaying combo system if no action happens
+            if (Date.now() - lastWellTime > 2000 && multiplier > 1) {
+                multiplier -= 0.05;
+                if (multiplier < 1) multiplier = 1;
+                multEl.innerText = multiplier.toFixed(1);
             }
-            ctx.globalAlpha = 1.0;
 
             requestAnimationFrame(loop);
         }
