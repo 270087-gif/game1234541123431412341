@@ -2,212 +2,180 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TERMINAL_OS: ECLIPSE</title>
+    <title>TERMINAL OVERLOAD</title>
     <style>
-        body { background: #0a0f0d; color: #39ff14; font-family: monospace; padding: 20px; user-select: none; }
-        #terminal { max-width: 700px; margin: 0 auto; background: #050806; border: 2px solid #39ff14; padding: 20px; box-shadow: 0 0 15px rgba(57,255,20,0.2); }
-        .bar-container { background: #1a231e; border: 1px solid #39ff14; height: 20px; margin: 10px 0; position: relative; }
-        .bar { background: #39ff14; height: 100%; width: 100%; transition: width 0.1s linear; }
-        .danger { background: #ff3333 !important; }
-        button { background: #111; color: #39ff14; border: 1px solid #39ff14; padding: 8px 16px; cursor: pointer; font-family: monospace; font-size: 14px; margin: 5px 2px; }
-        button:hover:not(:disabled) { background: #39ff14; color: #000; }
-        button:disabled { border-color: #224422; color: #224422; cursor: not-allowed; }
-        #log { height: 120px; overflow-y: auto; border: 1px solid #1a231e; padding: 8px; background: #020403; font-size: 13px; margin: 15px 0; color: #88ee88; }
-        #alert-zone { background: #220000; border: 1px dashed #ff3333; padding: 10px; margin: 15px 0; display: none; color: #ff3333; }
-        input[type="text"] { background: #000; border: 1px solid #ff3333; color: #ff3333; padding: 5px; font-family: monospace; width: 150px; }
+        body { background: #0a0e14; color: #00ff66; font-family: 'Courier New', monospace; padding: 20px; max-width: 650px; margin: auto; user-select: none; }
+        .panel { border: 2px solid #00ff66; padding: 15px; margin-bottom: 15px; box-shadow: 0 0 10px rgba(0,255,102,0.2); }
+        .danger { border-color: #ff3333; color: #ff3333; animation: blink 1s infinite; }
+        button { background: #002208; color: #00ff66; border: 1px solid #00ff66; padding: 8px 15px; cursor: pointer; font-family: inherit; font-weight: bold; margin: 5px 0; width: 100%; text-transform: uppercase; }
+        button:hover { background: #00ff66; color: #002208; }
+        button:disabled { border-color: #555; color: #555; background: transparent; cursor: not-allowed; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        #log { height: 120px; overflow-y: auto; font-size: 13px; border: 1px solid #00ff66; padding: 8px; background: #020602; white-space: pre-line; }
+        @keyframes blink { 50% { border-color: transparent; } }
+        .progress-bar { background: #111; border: 1px solid #00ff66; height: 12px; margin-top: 5px; }
+        .progress-fill { background: #00ff66; height: 100%; width: 100%; transition: width 0.1s linear; }
+        .danger .progress-fill { background: #ff3333; }
+        input[type="text"] { background: #000; color: #ff3333; border: 1px solid #ff3333; width: 95%; padding: 6px; font-family: inherit; margin-top: 5px; }
     </style>
 </head>
 <body>
-<div id="terminal">
-    <h2>[SYS_RECOVERY_V2.0.6]</h2>
-    <p>Target: <b>10,000 Terabytes</b> for deep-space broadcast extraction.</p>
-    
-    <div>DATA EXTRACTED: <span id="data-display" style="font-weight:bold; font-size:18px;">0</span> / 10,000 TB</div>
-    <div>ACTIVE BOTS: <span id="bots-display">0</span> (Extracting <span id="bps-display">0</span> TB/s)</div>
-    
-    <div style="margin-top: 15px;">GRID ENERGY:</div>
-    <div class="bar-container"><div id="energy-bar" class="bar"></div></div>
-    <div>Drain Rate: <span id="drain-display">2.0</span> MW/s</div>
-
-    <div style="margin: 20px 0;">
-        <button id="btn-defrag" onclick="manualDefrag()">[ MANUAL DEFRAG (+10 TB) ]</button>
-        <button id="btn-bot" onclick="buyBot()">[ BUILD SCRAPER BOT (Cost: 100 TB) ]</button>
-        <button id="btn-power" onclick="routePower()">[ ROUTE AUX POWER (+30% Energy) ]</button>
+    <div class="panel">
+        <h2 style="margin:0 0 10px 0; text-align:center;">=== DEEP SPACE TERMINAL: OS v9.42 ===</h2>
+        <div style="font-size:12px; text-align:center; margin-bottom:10px;" id="story-node">Initializing Subsystems... Route backup grids. Reach 100,000 Data Units.</div>
+        <div class="grid">
+            <div>DATA UNITS: <strong id="data-val">0</strong> / 100,000</div>
+            <div>GRID STABILITY: <strong id="power-val">100</strong>%</div>
+        </div>
+        <div class="progress-bar"><div id="power-bar" class="progress-fill"></div></div>
     </div>
 
-    <div id="alert-zone">
-        <b id="alert-title">CRITICAL ERROR</b><br>
-        <span id="alert-desc"></span><br><br>
-        <div id="alert-action"></div>
+    <div class="panel danger" id="evt-panel" style="display:none;">
+        <div style="font-weight:bold; margin-bottom:5px;">⚠️ CRITICAL SYSTEM ANOMALY: <span id="evt-title">NONE</span></div>
+        <div id="evt-desc" style="font-size:13px; margin-bottom:8px;"></div>
+        <div id="evt-interact"></div>
     </div>
 
-    <div id="log"></div>
-</div>
+    <div class="grid">
+        <div class="panel">
+            <button id="btn-manual" onclick="manualDefrag()">Execute Manual Defrag</button>
+            <button id="btn-route" onclick="routePower()">Route Emergency Power</button>
+        </div>
+        <div class="panel">
+            <button id="btn-bot" onclick="buyBot()">Deploy Scraper Bot (<span id="bot-cost">50</span> DT)</button>
+            <div style="font-size:12px; margin-top:5px; text-align:center;">Bots Active: <span id="bot-count">0</span> (+<span id="bot-rate">0</span> DT/s, -<span id="bot-drain">0</span>% Stab/s)</div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div style="font-size:11px; font-weight:bold; margin-bottom:4px;">OS SYSTEM LOG:</div>
+        <div id="log"></div>
+    </div>
 
 <script>
-    let state = { data: 0, bots: 0, energy: 100, target: 10,000, activeEvent: null, eventTimer: 0, totalTicks: 0 };
-    const logEl = document.getElementById('log');
+    let state = { data: 0, power: 100, bots: 0, botCost: 50, elapsed: 0, winTarget: 100000, eventActive: false, currentEvt: null, baseDrain: 0.8 };
+    const logEl = document.getElementById("log"), evtPanel = document.getElementById("evt-panel"), evtInteract = document.getElementById("evt-interact");
 
-    function log(msg, color = '#88ee88') {
-        logEl.innerHTML += `<div style="color: ${color}">> ${msg}</div>`;
-        logEl.scrollTop = logEl.scrollHeight;
+    function log(msg) { logEl.innerHTML += `> ${msg}\n`; logEl.scrollTop = logEl.scrollHeight; }
+    
+    function updateUI() {
+        document.getElementById("data-val").innerText = Math.floor(state.data).toLocaleString();
+        document.getElementById("power-val").innerText = Math.max(0, Math.floor(state.power));
+        document.getElementById("power-bar").style.width = `${Math.max(0, state.power)}%`;
+        document.getElementById("bot-count").innerText = state.bots;
+        document.getElementById("bot-cost").innerText = state.botCost;
+        document.getElementById("bot-rate").innerText = (state.bots * 4).toFixed(1);
+        document.getElementById("bot-drain").innerText = (state.bots * 0.5).toFixed(1);
+        document.getElementById("btn-bot").disabled = state.data < state.botCost || state.eventActive;
+        document.getElementById("btn-manual").disabled = state.eventActive && state.currentEvt !== 'OVERHEAT';
+        
+        let node = "Isolating signal... Avoid total system blackouts.";
+        if (state.data > 80000) node = "CORE CRITICAL: Signals collapsing! Hold the power grid together!!";
+        else if (state.data > 50000) node = "Deep space terminal feedback looping. Intrusion vectors spiking.";
+        else if (state.data > 20000) node = "External relay unlocked. The entity notices your scrapers.";
+        else if (state.data > 5000) node = "Data patterns hardening. Automation overhead increasing.";
+        document.getElementById("story-node").innerText = node;
     }
 
     function manualDefrag() {
-        if (state.activeEvent === 'LOCKOUT') return log("ERROR: Keyboard system locked by anomaly!", "#ff3333");
-        state.data += 10;
-        if (state.activeEvent === 'GLITCH' && Math.random() < 0.4) {
-            state.data = Math.max(0, state.data - 25);
-            log("Glitch flipped your bits! Lost 25 TB!", "#ff3333");
-        } else {
-            log("Manual sectors aligned. Gathered 10 TB.");
+        if (state.eventActive && state.currentEvt === 'OVERHEAT') {
+            state.evtProgress = (state.evtProgress || 0) + 8;
+            log(`Cooling flush deployed... ${state.evtProgress}%`);
+            if (state.evtProgress >= 100) resolveEvent("Core heat stabilized.");
+            return;
         }
+        state.data += 15;
+        state.power = Math.max(0, state.power - 1.2);
+        log("Manual defrag executed. +15 Data. -1.2% Grid Stability.");
+        updateUI();
+    }
+
+    function routePower() {
+        if (state.eventActive) return log("Error: Primary routing matrices locked by active event.");
+        if (state.data < 40) return log("Insufficient data packets to re-align grid coordinates.");
+        state.data -= 40;
+        state.power = Math.min(100, state.power + 25);
+        log("Emergency backup power routed. -40 Data. +25% Grid Stability.");
         updateUI();
     }
 
     function buyBot() {
-        let cost = 100 + Math.floor(state.bots * 45);
-        if (state.data >= cost) {
-            state.data -= cost;
+        if (state.data >= state.botCost) {
+            state.data -= state.botCost;
             state.bots++;
-            log(`Scraper Bot #${state.bots} deployed online.`, "#39ff14");
+            state.botCost = Math.floor(state.botCost * 1.55);
+            log(`Scraper Bot deployed. Autonomous harvesting array expanded.`);
             updateUI();
         }
     }
 
-    function routePower() {
-        if (state.activeEvent === 'OVERLOAD') return log("ERROR: Breakers fried. Cannot route power!", "#ff3333");
-        state.energy = Math.min(100, state.energy + 30);
-        log("Auxiliary capacitors discharged into the main frame.", "#39ff14");
-        updateUI();
-    }
-
-    const EVENTS = [
-        {
-            id: 'OVERLOAD',
-            title: '⚡ GRID OVERLOAD DETECTED',
-            desc: 'The power routing grid is melted shut. Click the bypass valve repeatedly to release pressure!',
-            start: () => { state.eventTimer = 12; },
-            render: () => `<button onclick="resolveEvent('OVERLOAD')">PUMP BYPASS VALVE</button> (Required: 8 clicks)`,
-            work: () => { 
-                state.eventTimer--; 
-                if (!state.eventWork) state.eventWork = 0;
-                state.eventWork++;
-                if (state.eventWork >= 8) endEvent("Grid cleared. Power routing systems operational.");
-            }
-        },
-        {
-            id: 'GLITCH',
-            title: '👾 MATRIX GLITCH IN PROGRESS',
-            desc: 'Corrupted data cycles are active. Manual defrags might delete data instead! Type the flush code:',
-            start: () => { 
-                state.eventTimer = 15; 
-                state.eventWork = Math.floor(1000 + Math.random() * 9000).toString(16).toUpperCase();
-            },
-            render: () => `Type <b>${state.eventWork}</b>: <input type="text" id="ev-input" oninput="checkGlitchCode(this.value)">`,
-            work: () => {}
-        },
-        {
-            id: 'LOCKOUT',
-            title: '🔒 SECURITY COLD-LOCK',
-            desc: 'Main terminal buttons are locked out. Cut the primary processing wire by typing exactly "CUT WIRE"',
-            start: () => { state.eventTimer = 15; },
-            render: () => `<input type="text" id="ev-input" placeholder="Type command..." oninput="if(this.value.toUpperCase()==='CUT WIRE') endEvent('Lockout bypassed!');">`,
-            work: () => {}
-        }
+    const events = [
+        { id: 'OVERHEAT', title: 'CORE OVERHEAT', desc: 'Manual Defrag cooling blocks jammed! Rapidly SPAM the "Execute Manual Defrag" button to vent heat before meltdown.', init: () => { state.evtProgress = 0; evtInteract.innerHTML = ''; } },
+        { id: 'CORRUPT', title: 'LOGIC CORRUPTION', desc: 'A malformed payload has frozen automation! Type the decryption key exactly into the matrix override field below.', init: () => {
+            let key = Math.random().toString(36).substring(2,7).toUpperCase();
+            evtInteract.innerHTML = `<input type="text" id="evt-input" placeholder="Type Key: ${key}">`;
+            document.getElementById("evt-input").oninput = (e) => { if(e.target.value.toUpperCase() === key) resolveEvent("Logic tables purged."); };
+        }},
+        { id: 'DRAIN', title: 'RESONANCE LEACH', desc: 'An extra-dimensional parasite is eating the terminal grid. Click the discharge node fast to shock it away.', init: () => {
+            evtInteract.innerHTML = `<button id="evt-shock-btn" style="border-color:#ff3333; color:#ff3333;">[ INITIALIZE HIGH-VOLTAGE DISCHARGE ]</button>`;
+            document.getElementById("evt-shock-btn").onclick = () => resolveEvent("Parasite vaporized.");
+        }}
     ];
 
-    function checkGlitchCode(val) {
-        if (val.toUpperCase() === state.eventWork) endEvent("Cache cleared. Matrix stabilized.");
-    }
-
-    function resolveEvent(id) {
-        let ev = EVENTS.find(e => e.id === id);
-        if (ev) ev.work();
-    }
-
     function triggerRandomEvent() {
-        if (state.activeEvent) return;
-        let ev = EVENTS[Math.floor(Math.random() * EVENTS.length)];
-        state.activeEvent = ev.id;
-        state.eventWork = null;
-        ev.start();
-        document.getElementById('alert-zone').style.display = 'block';
-        document.getElementById('alert-title').innerText = ev.title;
-        document.getElementById('alert-desc').innerText = ev.desc;
-        document.getElementById('alert-action').innerHTML = ev.render();
-        log(`WARNING: Emergency event initiated: ${ev.title}`, "#ff3333");
+        if (state.eventActive || state.elapsed < 15) return;
+        state.eventActive = true;
+        let roll = events[Math.floor(Math.random() * events.length)];
+        state.currentEvt = roll.id;
+        evtPanel.style.display = "block";
+        document.getElementById("evt-title").innerText = roll.title;
+        document.getElementById("evt-desc").innerText = roll.desc;
+        roll.init();
+        log(`CRITICAL WARNING: ${roll.title} registered.`);
     }
 
-    function endEvent(msg) {
-        state.activeEvent = null;
-        document.getElementById('alert-zone').style.display = 'none';
-        log(msg, "#39ff14");
+    function resolveEvent(msg) {
+        state.eventActive = false;
+        state.currentEvt = null;
+        evtPanel.style.display = "none";
+        evtInteract.innerHTML = '';
+        log(`SUCCESS: ${msg}`);
         updateUI();
     }
 
-    function updateUI() {
-        document.getElementById('data-display').innerText = state.data.toLocaleString();
-        let botCost = 100 + Math.floor(state.bots * 45);
-        document.getElementById('btn-bot').innerText = `[ BUILD SCRAPER BOT (Cost: ${botCost} TB) ]`;
-        document.getElementById('btn-bot').disabled = state.data < botCost;
-        document.getElementById('bots-display').innerText = state.bots;
-        document.getElementById('bps-display').innerText = state.bots * 4;
+    let gameLoop = setInterval(() => {
+        state.elapsed += 0.1;
         
-        let eBar = document.getElementById('energy-bar');
-        eBar.style.width = `${state.energy}%`;
-        if (state.energy < 30) eBar.classList.add('danger');
-        else eBar.classList.remove('danger');
-        
-        let baseDrain = 2.0;
-        let scalingDrain = baseDrain + (state.bots * 0.8) + (state.totalTicks * 0.015);
-        document.getElementById('drain-display').innerText = scalingDrain.toFixed(2);
-    }
+        // Progression scaling mechanics
+        let scalingFactor = 1 + (state.elapsed / 90); 
+        let currentDrain = (state.baseDrain * scalingFactor) + (state.bots * 0.5);
+        if (state.currentEvt === 'OVERHEAT') currentDrain += 4.5;
+        if (state.currentEvt === 'DRAIN') currentDrain += 3.0;
 
-    // Main Game loop running at 1-second intervals
-    const loop = setInterval(() => {
-        state.totalTicks++;
+        state.power -= currentDrain * 0.1;
         
-        // Dynamic scaling difficulty
-        let baseDrain = 2.0;
-        let scalingDrain = baseDrain + (state.bots * 0.8) + (state.totalTicks * 0.015);
-        
-        // Passive gathering and energy depletion
-        state.data += state.bots * 4;
-        state.energy -= scalingDrain;
+        let passiveIncome = state.bots * 4;
+        if (state.currentEvt === 'CORRUPT') passiveIncome = 0;
+        state.data += passiveIncome * 0.1;
 
-        // Process active event countdowns
-        if (state.activeEvent) {
-            state.eventTimer--;
-            let alertDesc = EVENTS.find(e => e.id === state.activeEvent).desc;
-            document.getElementById('alert-desc').innerText = `${alertDesc} (TIME REMAINING: ${state.eventTimer}s)`;
-            
-            if (state.eventTimer <= 0) {
-                state.energy -= 40;
-                endEvent("CRITICAL FAILURE: Event timer expired! Massive grid damage sustained (-40% Energy).");
-            }
-        } else if (state.totalTicks > 5 && Math.random() < 0.12) {
-            triggerRandomEvent();
+        if (Math.random() < 0.015) triggerRandomEvent();
+
+        if (state.power <= 0) {
+            clearInterval(gameLoop);
+            alert(`[SYSTEM CRASH] The terminal lost total grid stability at ${Math.floor(state.data)} data units. Darkness consumes the terminal. GAME OVER.`);
+            location.reload();
         }
 
-        // Win / Loss conditions
-        if (state.energy <= 0) {
-            state.energy = 0;
-            updateUI();
-            log("CRITICAL: GRID POWER ZERO. SYSTEM SHUTTING DOWN permanently.", "#ff3333");
-            alert("SYSTEM COLLAPSE: The terminal ran out of juice. Your transmissions fade out into the dark universe. GAME OVER.");
-            clearInterval(loop);
-        } else if (state.data >= 10000) {
-            updateUI();
-            log("SUCCESS: 10,000 TB EXTRACTED. Broadcast sequence activated!", "#39ff14");
-            alert("VICTORY! Against compounding grid rot and endless system alerts, you completely defragged the core sectors and beamed the emergency message home!");
-            clearInterval(loop);
-        } else {
-            updateUI();
+        if (state.data >= state.winTarget) {
+            clearInterval(gameLoop);
+            alert(`[CONNECTION SECURED] Total logs uploaded. You successfully broadcast the signal out of the dead sector! YOU WON IN ${(state.elapsed).toFixed(1)}s!`);
+            location.reload();
         }
-    }, 1000);
 
-    log("Terminal initialized. Core connection established. Begin data harvest.");
+        updateUI();
+    }, 100);
+
+    log("Terminal initialized. Ready for operations.");
     updateUI();
 </script>
 </body>
