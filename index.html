@@ -3,25 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quantum Fluid Physics</title>
+    <title>Quantum Fluid Sandbox</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #050508; font-family: sans-serif; }
-        canvas { display: block; width: 100vw; height: 100vh; }
-        #ui { position: absolute; top: 15px; left: 15px; color: rgba(255,255,255,0.7); pointer-events: none; font-size: 14px; line-height: 1.5; }
-        h1 { margin: 0 0 5px 0; font-size: 18px; color: #00ffcc; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
+        body, html { margin: 0; padding: 0; overflow: hidden; background: #080810; font-family: monospace; }
+        canvas { display: block; cursor: crosshair; }
+        #ui { position: absolute; top: 15px; left: 15px; color: #7f9fbf; pointer-events: none; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+        h1 { margin: 0 0 5px 0; font-size: 18px; letter-spacing: 2px; color: #00ffcc; }
+        p { margin: 0; font-size: 12px; opacity: 0.8; }
     </style>
 </head>
 <body>
     <div id="ui">
-        <h1>Quantum Fluid Sandbox</h1>
-        • Click & drag to grab and "swing" matter<br>
-        • Smash particles at high speeds to split them<br>
-        • Leave them close to let fluid cohesion merge them
+        <h1>QUANTUM FLUID</h1>
+        <p>• Click & Drag to swing particles<br>• Smash them at high speed to fracture<br>• Let them rest together to merge</p>
     </div>
-    <canvas id="canvas"></canvas>
+    <canvas id="sandbox"></canvas>
 
     <script>
-        const canvas = document.getElementById('canvas');
+        const canvas = document.getElementById('sandbox');
         const ctx = canvas.getContext('2d');
         
         let width = canvas.width = window.innerWidth;
@@ -29,194 +28,183 @@
         window.addEventListener('resize', () => { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; });
 
         const particles = [];
-        const friction = 0.98;
-        const gravity = 0.15;
-        const fluidRadius = 45; // Radius of liquid attraction influence
-        
-        // Mouse/Touch State
-        const mouse = { x: 0, y: 0, isDown: false, grabbed: null, lastX: 0, lastY: 0, vx: 0, vy: 0 };
+        const FRICTION = 0.98; // Creates the liquid-type feeling
+        const DENSITY = 0.4;   // Mass relative to area
+        let grabbedParticle = null;
+        let mouse = { x: 0, y: 0, vx: 0, vy: 0, lastX: 0, lastY: 0 };
 
         class Particle {
-            constructor(x, y, radius = Math.random() * 15 + 10, color = null) {
+            constructor(x, y, radius, color = null) {
                 this.x = x;
                 this.y = y;
+                this.radius = Math.max(4, radius);
+                this.mass = this.radius * DENSITY;
                 this.vx = (Math.random() - 0.5) * 4;
                 this.vy = (Math.random() - 0.5) * 4;
-                this.radius = Math.max(4, radius);
-                this.mass = this.radius * this.radius;
                 this.color = color || `hsl(${Math.random() * 60 + 170}, 100%, 60%)`;
             }
 
             update() {
-                if (this === mouse.grabbed) {
-                    this.vx = mouse.vx;
-                    this.vy = mouse.vy;
-                    this.x = mouse.x;
-                    this.y = mouse.y;
+                if (this === grabbedParticle) {
+                    // Smooth tracking to mouse position
+                    this.vx = (mouse.x - this.x) * 0.3;
+                    this.vy = (mouse.y - this.y) * 0.3;
                 } else {
-                    this.vy += gravity;
-                    this.vx *= friction;
-                    this.vy *= friction;
-                    this.x += this.vx;
-                    this.y += this.vy;
-
-                    // Wall Collisions with bounce
-                    if (this.x < this.radius) { this.x = this.radius; this.vx *= -0.6; }
-                    if (this.x > width - this.radius) { this.x = width - this.radius; this.vx *= -0.6; }
-                    if (this.y < this.radius) { this.y = this.radius; this.vy *= -0.6; }
-                    if (this.y > height - this.radius) { this.y = height - this.radius; this.vy *= -0.6; }
+                    this.vx *= FRICTION;
+                    this.vy *= FRICTION;
+                    // Gentle liquid float up/down behavior
+                    this.vy += Math.sin(this.x * 0.01 + Date.now() * 0.002) * 0.05;
                 }
+                
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Wall bounds with bounce
+                if (this.x < this.radius) { this.x = this.radius; this.vx *= -0.6; }
+                if (this.x > width - this.radius) { this.x = width - this.radius; this.vx *= -0.6; }
+                if (this.y < this.radius) { this.y = this.radius; this.vy *= -0.6; }
+                if (this.y > height - this.radius) { this.y = height - this.radius; this.vy *= -0.6; }
+            }
+
+            draw() {
+                ctx.beginPath();
+                let gradient = ctx.createRadialGradient(this.x, this.y, this.radius * 0.1, this.x, this.y, this.radius);
+                gradient.addColorStop(0, '#ffffff');
+                gradient.addColorStop(0.2, this.color);
+                gradient.addColorStop(1, 'transparent');
+                ctx.fillStyle = gradient;
+                ctx.arc(this.x, this.y, this.radius * 1.4, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
 
-        // Spawn initial particles
+        // Spawn initial pool of particles
         for (let i = 0; i < 35; i++) {
-            particles.push(new Particle(Math.random() * width, Math.random() * (height / 2) + 100));
+            particles.push(new Particle(Math.random() * width, Math.random() * height, Math.random() * 25 + 15));
         }
 
-        function handleInteractions() {
+        function handleCollisions() {
             for (let i = 0; i < particles.length; i++) {
-                const p1 = particles[i];
-
                 for (let j = i + 1; j < particles.length; j++) {
-                    const p2 = particles[j];
-                    const dx = p2.x - p1.x;
-                    const dy = p2.y - p1.y;
-                    const dist = Math.hypot(dx, dy);
-                    const minDist = p1.radius + p2.radius;
+                    let p1 = particles[i];
+                    let p2 = particles[j];
 
-                    // 1. Liquid Metaball / Cohesion Feeling (Attraction at close range)
-                    if (dist < fluidRadius * 2 && dist > minDist) {
-                        const force = (fluidRadius * 2 - dist) * 0.0003;
-                        const ax = (dx / dist) * force;
-                        const ay = (dy / dist) * force;
-                        
-                        if (p1 !== mouse.grabbed) { p1.vx += ax * (p2.mass / p1.mass); p1.vy += ay * (p2.mass / p1.mass); }
-                        if (p2 !== mouse.grabbed) { p2.vx -= ax * (p1.mass / p2.mass); p2.vy -= ay * (p1.mass / p2.mass); }
-                    }
+                    let dx = p2.x - p1.x;
+                    let dy = p2.y - p1.y;
+                    let dist = Math.sqrt(dx * dx + dy * dy);
+                    let minDist = p1.radius + p2.radius;
 
-                    // 2. Physical Collision & Reaction Processing
                     if (dist < minDist) {
-                        const overlap = minDist - dist;
-                        const nx = dx / dist;
-                        const ny = dy / dist;
+                        let overlap = minDist - dist;
+                        let nx = dx / dist;
+                        let ny = dy / dist;
 
-                        // Calculate relative velocity along normal
-                        const rvx = p2.vx - p1.vx;
-                        const rvy = p2.vy - p1.vy;
-                        const velAlongNormal = rvx * nx + rvy * ny;
+                        // Separate overlapping particles
+                        p1.x -= nx * overlap * 0.5;
+                        p1.y -= ny * overlap * 0.5;
+                        p2.x += nx * overlap * 0.5;
+                        p2.y += ny * overlap * 0.5;
 
-                        // CRITICAL HIT: Smash to pieces if kinetic energy is high enough
-                        const smashVelocity = velAlongNormal * -1; 
-                        if (smashVelocity > 14 && (p1.radius > 6 || p2.radius > 6)) {
-                            splitParticle(p1, smashVelocity);
-                            splitParticle(p2, smashVelocity);
-                            return; // Break loop cycle early to avoid index handling errors post-mutation
-                        }
+                        // Calculate relative velocity
+                        let rvx = p2.vx - p1.vx;
+                        let rvy = p2.vy - p1.vy;
+                        let velAlongNormal = rvx * nx + rvy * ny;
 
-                        // Organic Merge: If moving slowly and touching, merge back together
-                        if (smashVelocity < 1.5 && p1 !== mouse.grabbed && p2 !== mouse.grabbed) {
-                            p1.radius = Math.sqrt(p1.mass + p2.mass);
-                            p1.mass = p1.radius * p1.radius;
-                            particles.splice(j, 1);
-                            j--;
-                            continue;
-                        }
-
-                        // Regular elastic bounce resolution
+                        // Only resolve if velocities are moving towards each other
                         if (velAlongNormal < 0) {
-                            const restitution = 0.5;
-                            const impulseScalar = -(1 + restitution) * velAlongNormal / (1/p1.mass + 1/p2.mass);
-                            
-                            if (p1 !== mouse.grabbed) { p1.vx -= (impulseScalar / p1.mass) * nx; p1.vy -= (impulseScalar / p1.mass) * ny; }
-                            if (p2 !== mouse.grabbed) { p2.vx += (impulseScalar / p2.mass) * nx; p2.vy += (impulseScalar / p2.mass) * ny; }
-                        }
+                            let speed = Math.sqrt(rvx * rvx + rvy * rvy);
 
-                        // Separate overlapping particles cleanly
-                        if (p1 !== mouse.grabbed && p2 !== mouse.grabbed) {
-                            p1.x -= nx * overlap * 0.5; p1.y -= ny * overlap * 0.5;
-                            p2.x += nx * overlap * 0.5; p2.y += ny * overlap * 0.5;
-                        } else if (p1 === mouse.grabbed) {
-                            p2.x += nx * overlap; p2.y += ny * overlap;
-                        } else {
-                            p1.x -= nx * overlap; p1.y -= ny * overlap;
+                            // FRACTURE CONDITION: High speed impact sparks splitting
+                            if (speed > 16 && (p1.radius > 12 || p2.radius > 12)) {
+                                fracture(p1, speed);
+                                fracture(p2, speed);
+                                return;
+                            }
+
+                            // MERGE CONDITION: Slow moving, touching particles blend together
+                            if (speed < 1.2 && p1 !== grabbedParticle && p2 !== grabbedParticle) {
+                                p1.radius = Math.min(70, Math.sqrt(p1.radius * p1.radius + p2.radius * p2.radius));
+                                p1.mass = p1.radius * DENSITY;
+                                particles.splice(j, 1);
+                                j--;
+                                continue;
+                            }
+
+                            // Elastic bounce mathematics
+                            let restitution = 0.7; 
+                            let impulseScalar = -(1 + restitution) * velAlongNormal / (1/p1.mass + 1/p2.mass);
+                            let ix = impulseScalar * nx;
+                            let iy = impulseScalar * ny;
+
+                            p1.vx -= ix / p1.mass;
+                            p1.vy -= iy / p1.mass;
+                            p2.vx += ix / p2.mass;
+                            p2.vy += iy / p2.mass;
                         }
                     }
                 }
             }
         }
 
-        function splitParticle(p, speed) {
-            if (p.radius <= 6) return;
-            const index = particles.indexOf(p);
-            if (index === -1) return;
+        function fracture(p, impactSpeed) {
+            if (p.radius <= 8) return;
+            const idx = particles.indexOf(p);
+            if (idx > -1) particles.splice(idx, 1);
+            
+            let pieces = Math.floor(Math.random() * 2) + 2; 
+            let newRadius = p.radius / Math.sqrt(pieces);
 
-            if (p === mouse.grabbed) mouse.grabbed = null;
-            particles.splice(index, 1);
-
-            const numFragments = Math.floor(Math.random() * 2) + 2; // Split into 2 or 3 blobs
-            const newRadius = p.radius / Math.sqrt(numFragments);
-
-            for (let i = 0; i < numFragments; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const frag = new Particle(p.x + Math.cos(angle)*p.radius*0.5, p.y + Math.sin(angle)*p.radius*0.5, newRadius, p.color);
-                frag.vx = p.vx + Math.cos(angle) * (speed * 0.3);
-                frag.vy = p.vy + Math.sin(angle) * (speed * 0.3);
-                particles.push(frag);
+            for (let k = 0; k < pieces; k++) {
+                let angle = Math.random() * Math.PI * 2;
+                let child = new Particle(p.x + Math.cos(angle)*5, p.y + Math.sin(angle)*5, newRadius, p.color);
+                child.vx = p.vx + Math.cos(angle) * (impactSpeed * 0.2);
+                child.vy = p.vy + Math.sin(angle) * (impactSpeed * 0.2);
+                particles.push(child);
             }
         }
 
-        // Event Listeners for seamless grabbing/throwing
-        function trackMouse(e) {
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            mouse.vx = clientX - mouse.x;
-            mouse.vy = clientY - mouse.y;
-            mouse.x = clientX;
-            mouse.y = clientY;
-        }
-
+        // Interaction Listeners
         window.addEventListener('mousedown', (e) => {
-            mouse.isDown = true;
-            trackMouse(e);
-            // Find closest particle clicked
+            mouse.x = e.clientX; mouse.y = e.clientY;
             for (let p of particles) {
-                if (Math.hypot(p.x - mouse.x, p.y - mouse.y) < p.radius + 15) {
-                    mouse.grabbed = p;
-                    break;
-                }
+                let dist = Math.hypot(p.x - mouse.x, p.y - mouse.y);
+                if (dist < p.radius + 15) { grabbedParticle = p; break; }
             }
         });
 
-        window.addEventListener('mousemove', trackMouse);
-        window.addEventListener('mouseup', () => { mouse.isDown = false; mouse.grabbed = null; });
-        
-        // Mobile Support
-        window.addEventListener('touchstart', (e) => { window.dispatchEvent(new MouseEvent('mousedown', {clientX: e.touches[0].clientX, clientY: e.touches[0].clientY})); });
-        window.addEventListener('touchmove', trackMouse);
-        window.addEventListener('touchend', () => { mouse.isDown = false; mouse.grabbed = null; });
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = e.clientX; mouse.y = e.clientY;
+        });
 
-        // Main Simulation Loop
-        function animate() {
-            ctx.fillStyle = 'rgba(5, 5, 8, 0.25)'; // Gives liquid motion blur glow trail
+        window.addEventListener('mouseup', () => {
+            if (grabbedParticle) {
+                // Transfer actual mouse swing speed upon release
+                grabbedParticle.vx = mouse.vx * 0.8;
+                grabbedParticle.vy = mouse.vy * 0.8;
+                grabbedParticle = null;
+            }
+        });
+
+        // Main game loops
+        function loop() {
+            ctx.fillStyle = 'rgba(8, 8, 16, 0.25)'; // Gives liquid motion blur tails
             ctx.fillRect(0, 0, width, height);
 
-            handleInteractions();
+            // Track mouse acceleration for swinging kinetic energy
+            mouse.vx = mouse.x - mouse.lastX;
+            mouse.vy = mouse.y - mouse.lastY;
+            mouse.lastX = mouse.x;
+            mouse.lastY = mouse.y;
 
-            // Decay calculated mouse throwing forces if mouse stops dragging
-            if (!mouse.isDown) { mouse.vx *= 0.5; mouse.vy *= 0.5; }
+            handleCollisions();
 
-            particles.forEach(p => {
+            for (let p of particles) {
                 p.update();
-                
-                // Draw liquid particle glow overlay
-                const grad = ctx.createRadialGradient(p.x, p.y, p.radius * 0.2, p.x, p.y, p.radius * 1.6);
-                grad.addColorStop(0, '#ffffff');
-                grad.addColorStop(0.3, p.color);
-                ctx.fillStyle = grad;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.radius * 1.6, 0, Math.PI * 2);ctx.fill();
-            });
-            requestAnimationFrame(animate)
-        ;}
-    animate();
+                p.draw();
+            }
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>
