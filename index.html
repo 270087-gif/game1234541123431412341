@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fluid Alchemy Lab</title>
+    <title>Quantum Fluid Physics</title>
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background: #06060c; font-family: system-ui, sans-serif; color: #fff; user-select: none; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #050508; font-family: sans-serif; }
         canvas { display: block; width: 100vw; height: 100vh; }
-        #ui { position: absolute; top: 20px; left: 20px; pointer-events: none; text-shadow: 0 2px 8px rgba(0,0,0,0.9); }
-        h1 { margin: 0 0 4px 0; font-size: 1.6rem; font-weight: 700; letter-spacing: 0.5px; background: linear-gradient(45deg, #ff3366, #33f3ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        p { margin: 0; font-size: 0.85rem; opacity: 0.75; line-height: 1.4; }
+        #ui { position: absolute; top: 15px; left: 15px; color: rgba(255,255,255,0.7); pointer-events: none; font-size: 14px; line-height: 1.5; }
+        h1 { margin: 0 0 5px 0; font-size: 18px; color: #00ffcc; text-shadow: 0 0 10px rgba(0,255,204,0.5); }
     </style>
 </head>
 <body>
     <div id="ui">
-        <h1>Fluid Alchemy</h1>
-        <p>• Drag / Swipe across the screen to swirl the liquid.</p>
-        <p>• Smash different colors together fast to mutate their elements!</p>
+        <h1>Quantum Fluid Sandbox</h1>
+        • Click & drag to grab and "swing" matter<br>
+        • Smash particles at high speeds to split them<br>
+        • Leave them close to let fluid cohesion merge them
     </div>
     <canvas id="canvas"></canvas>
 
@@ -26,148 +26,197 @@
         
         let width = canvas.width = window.innerWidth;
         let height = canvas.height = window.innerHeight;
-        
-        const particles = [];
-        const types = [
-            { id: 0, color: '#ff3366' },  // Pyros (Crimson Fire)
-            { id: 1, color: '#33ffaa' },  // Bio (Neon Acid)
-            { id: 2, color: '#3388ff' }   // Aqua (Electric Blue)
-        ];
+        window.addEventListener('resize', () => { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; });
 
-        const mouse = { x: -1000, y: -1000, active: false, px: 0, py: 0, vx: 0, vy: 0 };
+        const particles = [];
+        const friction = 0.98;
+        const gravity = 0.15;
+        const fluidRadius = 45; // Radius of liquid attraction influence
+        
+        // Mouse/Touch State
+        const mouse = { x: 0, y: 0, isDown: false, grabbed: null, lastX: 0, lastY: 0, vx: 0, vy: 0 };
 
         class Particle {
-            constructor(x, y, typeId) {
+            constructor(x, y, radius = Math.random() * 15 + 10, color = null) {
                 this.x = x;
                 this.y = y;
-                this.vx = (Math.random() - 0.5) * 5;
-                this.vy = (Math.random() - 0.5) * 5;
-                this.radius = 5 + Math.random() * 4;
-                this.type = typeId;
+                this.vx = (Math.random() - 0.5) * 4;
+                this.vy = (Math.random() - 0.5) * 4;
+                this.radius = Math.max(4, radius);
+                this.mass = this.radius * this.radius;
+                this.color = color || `hsl(${Math.random() * 60 + 170}, 100%, 60%)`;
             }
 
             update() {
-                // Fluid Drag/Viscosity (gives it that heavy, liquid feel)
-                this.vx *= 0.97;
-                this.vy *= 0.97;
+                if (this === mouse.grabbed) {
+                    this.vx = mouse.vx;
+                    this.vy = mouse.vy;
+                    this.x = mouse.x;
+                    this.y = mouse.y;
+                } else {
+                    this.vy += gravity;
+                    this.vx *= friction;
+                    this.vy *= friction;
+                    this.x += this.vx;
+                    this.y += this.vy;
 
-                // Mouse interaction physics
-                if (mouse.active) {
-                    const dx = this.x - mouse.x;
-                    const dy = this.y - mouse.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < 180) {
-                        const force = (180 - dist) / 180;
-                        // Swirl / Vortex cross-product vector calculations + direct mouse momentum transfer
-                        this.vx += mouse.vx * force * 0.25 + (dy / (dist || 1)) * force * 2.5;
-                        this.vy += mouse.vy * force * 0.25 - (dx / (dist || 1)) * force * 2.5;
-                    }
+                    // Wall Collisions with bounce
+                    if (this.x < this.radius) { this.x = this.radius; this.vx *= -0.6; }
+                    if (this.x > width - this.radius) { this.x = width - this.radius; this.vx *= -0.6; }
+                    if (this.y < this.radius) { this.y = this.radius; this.vy *= -0.6; }
+                    if (this.y > height - this.radius) { this.y = height - this.radius; this.vy *= -0.6; }
                 }
-
-                this.x += this.vx;
-                this.y += this.vy;
-
-                // Boundary physics (bounce off borders safely)
-                if (this.x < this.radius) { this.x = this.radius; this.vx *= -0.6; }
-                if (this.x > width - this.radius) { this.x = width - this.radius; this.vx *= -0.6; }
-                if (this.y < this.radius) { this.y = this.radius; this.vy *= -0.6; }
-                if (this.y > height - this.radius) { this.y = height - this.radius; this.vy *= -0.6; }
             }
         }
 
-        // Spawn custom interactive mix of particles
-        const particleCount = Math.min(380, Math.floor((width * height) / 2500));
-        for (let i = 0; i < particleCount; i++) {
-            particles.push(new Particle(Math.random() * width, Math.random() * height, Math.floor(Math.random() * types.length)));
+        // Spawn initial particles
+        for (let i = 0; i < 35; i++) {
+            particles.push(new Particle(Math.random() * width, Math.random() * (height / 2) + 100));
         }
 
         function handleInteractions() {
             for (let i = 0; i < particles.length; i++) {
                 const p1 = particles[i];
+
                 for (let j = i + 1; j < particles.length; j++) {
                     const p2 = particles[j];
                     const dx = p2.x - p1.x;
                     const dy = p2.y - p1.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    const minDist = p1.radius + p2.radius + 10; // Overlap buffer zone for fluid pressure
+                    const dist = Math.hypot(dx, dy);
+                    const minDist = p1.radius + p2.radius;
 
+                    // 1. Liquid Metaball / Cohesion Feeling (Attraction at close range)
+                    if (dist < fluidRadius * 2 && dist > minDist) {
+                        const force = (fluidRadius * 2 - dist) * 0.0003;
+                        const ax = (dx / dist) * force;
+                        const ay = (dy / dist) * force;
+                        
+                        if (p1 !== mouse.grabbed) { p1.vx += ax * (p2.mass / p1.mass); p1.vy += ay * (p2.mass / p1.mass); }
+                        if (p2 !== mouse.grabbed) { p2.vx -= ax * (p1.mass / p2.mass); p2.vy -= ay * (p1.mass / p2.mass); }
+                    }
+
+                    // 2. Physical Collision & Reaction Processing
                     if (dist < minDist) {
-                        // Hydrostatic pressure pushing particles apart
-                        const force = (minDist - dist) * 0.05;
-                        const ax = (dx / (dist || 1)) * force;
-                        const ay = (dy / (dist || 1)) * force;
+                        const overlap = minDist - dist;
+                        const nx = dx / dist;
+                        const ny = dy / dist;
 
-                        p1.vx -= ax;
-                        p1.vy -= ay;
-                        p2.vx += ax;
-                        p2.vy += ay;
+                        // Calculate relative velocity along normal
+                        const rvx = p2.vx - p1.vx;
+                        const rvy = p2.vy - p1.vy;
+                        const velAlongNormal = rvx * nx + rvy * ny;
 
-                        // Kinetic mutation mechanics (Smashed reactions)
-                        if (p1.type !== p2.type && dist < (p1.radius + p2.radius) * 1.3) {
-                            const relativeSpeed = Math.sqrt((p1.vx - p2.vx)**2 + (p1.vy - p2.vy)**2);
+                        // CRITICAL HIT: Smash to pieces if kinetic energy is high enough
+                        const smashVelocity = velAlongNormal * -1; 
+                        if (smashVelocity > 14 && (p1.radius > 6 || p2.radius > 6)) {
+                            splitParticle(p1, smashVelocity);
+                            splitParticle(p2, smashVelocity);
+                            return; // Break loop cycle early to avoid index handling errors post-mutation
+                        }
+
+                        // Organic Merge: If moving slowly and touching, merge back together
+                        if (smashVelocity < 1.5 && p1 !== mouse.grabbed && p2 !== mouse.grabbed) {
+                            p1.radius = Math.sqrt(p1.mass + p2.mass);
+                            p1.mass = p1.radius * p1.radius;
+                            particles.splice(j, 1);
+                            j--;
+                            continue;
+                        }
+
+                        // Regular elastic bounce resolution
+                        if (velAlongNormal < 0) {
+                            const restitution = 0.5;
+                            const impulseScalar = -(1 + restitution) * velAlongNormal / (1/p1.mass + 1/p2.mass);
                             
-                            if (relativeSpeed > 2.2) { // Must slam them with enough force to blend elements
-                                if ((p1.type === 0 && p2.type === 1) || (p1.type === 1 && p2.type === 0)) {
-                                    p1.type = 2; p2.type = 2; // Fire + Acid mutates to Blue Aqua
-                                } else if ((p1.type === 1 && p2.type === 2) || (p1.type === 2 && p2.type === 1)) {
-                                    p1.type = 0; p2.type = 0; // Acid + Water ignites to Red Pyros
-                                } else if ((p1.type === 2 && p2.type === 0) || (p1.type === 0 && p2.type === 2)) {
-                                    p1.type = 1; p2.type = 1; // Water + Fire synthesizes Neon Acid
-                                }
-                            }
+                            if (p1 !== mouse.grabbed) { p1.vx -= (impulseScalar / p1.mass) * nx; p1.vy -= (impulseScalar / p1.mass) * ny; }
+                            if (p2 !== mouse.grabbed) { p2.vx += (impulseScalar / p2.mass) * nx; p2.vy += (impulseScalar / p2.mass) * ny; }
+                        }
+
+                        // Separate overlapping particles cleanly
+                        if (p1 !== mouse.grabbed && p2 !== mouse.grabbed) {
+                            p1.x -= nx * overlap * 0.5; p1.y -= ny * overlap * 0.5;
+                            p2.x += nx * overlap * 0.5; p2.y += ny * overlap * 0.5;
+                        } else if (p1 === mouse.grabbed) {
+                            p2.x += nx * overlap; p2.y += ny * overlap;
+                        } else {
+                            p1.x -= nx * overlap; p1.y -= ny * overlap;
                         }
                     }
                 }
             }
         }
 
-        function animate() {
-            // Semi-transparent trailing alpha layer creates a beautiful liquid motion blur
-            ctx.fillStyle = 'rgba(6, 6, 12, 0.22)';
-            ctx.fillRect(0, 0, width, height);
+        function splitParticle(p, speed) {
+            if (p.radius <= 6) return;
+            const index = particles.indexOf(p);
+            if (index === -1) return;
 
-            if (mouse.active) {
-                mouse.vx = mouse.x - mouse.px;
-                mouse.vy = mouse.y - mouse.py;
-                mouse.px = mouse.x;
-                mouse.py = mouse.y;
+            if (p === mouse.grabbed) mouse.grabbed = null;
+            particles.splice(index, 1);
+
+            const numFragments = Math.floor(Math.random() * 2) + 2; // Split into 2 or 3 blobs
+            const newRadius = p.radius / Math.sqrt(numFragments);
+
+            for (let i = 0; i < numFragments; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const frag = new Particle(p.x + Math.cos(angle)*p.radius*0.5, p.y + Math.sin(angle)*p.radius*0.5, newRadius, p.color);
+                frag.vx = p.vx + Math.cos(angle) * (speed * 0.3);
+                frag.vy = p.vy + Math.sin(angle) * (speed * 0.3);
+                particles.push(frag);
             }
+        }
+
+        // Event Listeners for seamless grabbing/throwing
+        function trackMouse(e) {
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            mouse.vx = clientX - mouse.x;
+            mouse.vy = clientY - mouse.y;
+            mouse.x = clientX;
+            mouse.y = clientY;
+        }
+
+        window.addEventListener('mousedown', (e) => {
+            mouse.isDown = true;
+            trackMouse(e);
+            // Find closest particle clicked
+            for (let p of particles) {
+                if (Math.hypot(p.x - mouse.x, p.y - mouse.y) < p.radius + 15) {
+                    mouse.grabbed = p;
+                    break;
+                }
+            }
+        });
+
+        window.addEventListener('mousemove', trackMouse);
+        window.addEventListener('mouseup', () => { mouse.isDown = false; mouse.grabbed = null; });
+        
+        // Mobile Support
+        window.addEventListener('touchstart', (e) => { window.dispatchEvent(new MouseEvent('mousedown', {clientX: e.touches[0].clientX, clientY: e.touches[0].clientY})); });
+        window.addEventListener('touchmove', trackMouse);
+        window.addEventListener('touchend', () => { mouse.isDown = false; mouse.grabbed = null; });
+
+        // Main Simulation Loop
+        function animate() {
+            ctx.fillStyle = 'rgba(5, 5, 8, 0.25)'; // Gives liquid motion blur glow trail
+            ctx.fillRect(0, 0, width, height);
 
             handleInteractions();
 
+            // Decay calculated mouse throwing forces if mouse stops dragging
+            if (!mouse.isDown) { mouse.vx *= 0.5; mouse.vy *= 0.5; }
+
             particles.forEach(p => {
                 p.update();
+                
+                // Draw liquid particle glow overlay
+                const grad = ctx.createRadialGradient(p.x, p.y, p.radius * 0.2, p.x, p.y, p.radius * 1.6);
+                grad.addColorStop(0, '#ffffff');
+                grad.addColorStop(0.3, p.color);
+                ctx.fillStyle = grad;
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-                ctx.fillStyle = types[p.type].color;
-                // Native canvas neon glow properties
-                ctx.shadowBlur = 12;
-                ctx.shadowColor = types[p.type].color;
-                ctx.fill();
+                ctx.arc(p.x, p.y, p.radius * 1.6, 0, Math.PI * 2);ctx.fill();
             });
-            
-            ctx.shadowBlur = 0; // Performance optimization reset
-            requestAnimationFrame(animate);
-        }
-
-        // Mouse & Touch Inputs
-        const updateMouse = (e) => {
-            const t = e.touches ? e.touches[0] : e;
-            mouse.x = t.clientX;
-            mouse.y = t.clientY;
-        };
-
-        window.addEventListener('mousedown', (e) => { mouse.active = true; mouse.px = e.clientX; mouse.py = e.clientY; updateMouse(e); });
-        window.addEventListener('mousemove', updateMouse);
-        window.addEventListener('mouseup', () => { mouse.active = false; });
-        
-        window.addEventListener('touchstart', (e) => { mouse.active = true; mouse.px = e.touches[0].clientX; mouse.py = e.touches[0].clientY; updateMouse(e); }, {passive: false});
-        window.addEventListener('touchmove', (e) => { updateMouse(e); e.preventDefault(); }, {passive: false});
-        window.addEventListener('touchend', () => { mouse.active = false; });
-
-        window.addEventListener('resize', () => { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; });
-
-        animate();
-    </script>
-</body>
-</html>
+            requestAnimationFrame(animate)
+        ;}
+    animate();
