@@ -2,175 +2,141 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fluid Particle Sandbox</title>
+    <title>Sub-Sector 7: Terminal</title>
     <style>
-        body, html { margin: 0; padding: 0; overflow: hidden; background: #080810; font-family: sans-serif; }
-        canvas { display: block; }
-        #ui { position: absolute; top: 15px; left: 15px; color: rgba(255,255,255,0.7); pointer-events: none; font-size: 14px; line-height: 1.5; }
-        h1 { margin: 0 0 5px 0; font-size: 18px; color: #fff; text-shadow: 0 0 10px #00f0ff; }
+        body { background: #0b0d10; color: #a3b8cc; font-family: monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        #terminal { width: 620px; background: #12161c; border: 1px solid #2a3644; border-radius: 6px; padding: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.6); }
+        h1 { color: #4fc3f7; margin: 0 0 15px 0; font-size: 1.3rem; letter-spacing: 2px; text-transform: uppercase; border-bottom: 1px solid #2a3644; padding-bottom: 10px; }
+        #log { height: 240px; overflow-y: auto; margin-bottom: 20px; padding: 12px; background: #07090c; border-radius: 4px; font-size: 0.9rem; line-height: 1.6; border: 1px solid #1a222a; }
+        .msg { margin-bottom: 10px; opacity: 0; animation: fadeIn 0.4s forwards; }
+        .sys { color: #64e572; } .story { color: #e0e0e0; } .warn { color: #ff5252; } .intel { color: #b388ff; }
+        #stats { display: flex; justify-content: space-between; background: #1a2129; padding: 12px 16px; border-radius: 4px; margin-bottom: 20px; border: 1px solid #25313e; font-size: 0.9rem; }
+        .val { color: #ffffff; font-weight: bold; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        button { background: #1f2731; border: 1px solid #3b4e66; color: #e0e0e0; padding: 14px; font-family: monospace; font-size: 0.85rem; cursor: pointer; border-radius: 4px; transition: all 0.25s; text-align: left; }
+        button:hover:not(:disabled) { background: #2a3644; border-color: #4fc3f7; color: #fff; box-shadow: 0 0 8px rgba(79,195,247,0.2); }
+        button:disabled { opacity: 0.25; cursor: not-allowed; border-color: #222a33; }
+        @keyframes fadeIn { to { opacity: 1; } }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <h1>Quantum Liquid Sandbox</h1>
-        • Click & Hold to pull and trap fluid particles<br>
-        • Throw/Swing particles to launch them with velocity<br>
-        • Smash big particles together at high speed to split them<br>
-        • Let them rest near each other to merge back together
+<div id="terminal">
+    <h1>Sub-Sector 7 // Core Terminal</h1>
+    <div id="stats">
+        <div>GRID POWER: <span id="power" class="val">100</span>%</div>
+        <div>DATA ARCHIVED: <span id="data" class="val">0</span> / 100 TB</div>
+        <div>SCRAPER BOTS: <span id="bots" class="val">0</span></div>
     </div>
-    <canvas id="sandbox"></canvas>
+    <div id="log"></div>
+    <div class="grid">
+        <button id="btn-scan" onclick="manualScan()">[F1] Run Manual Defrag</button>
+        <button id="btn-bot" onclick="compileBot()" disabled>[F2] Compile Background Scraper (Cost: 15 TB)</button>
+        <button id="btn-power" onclick="divertPower()" disabled>[F3] Route Emergency Cells</button>
+        <button id="btn-transmit" onclick="transmitPayload()" disabled>[F4] Transmit Final Broadcast</button>
+    </div>
+</div>
+<script>
+    let game = { power: 100, data: 0, bots: 0, phase: 0, active: true };
+    const logBox = document.getElementById('log');
+    
+    const narrative = [
+        "System initiated. Deep space monitoring platform is dark. Local beacon integrity: Critical.",
+        "Sensing pulse anomaly. A massive structural void is slowly drifting past your radar array.",
+        "The anomaly changed vectors. It detected the terminal's data signature. Accelerate recovery.",
+        "Internal heat exchangers failing due to external radiation pressure. The core is venting.",
+        "Archive compilation complete. Sub-Sector 7 history locked down. Long-range array fully primed."
+    ];
 
-    <script>
-        const canvas = document.getElementById('sandbox');
-        const ctx = canvas.getContext('2d');
+    function printLog(text, style = 'story') {
+        const line = document.createElement('div');
+        line.className = `msg ${style}`;
+        line.innerText = `> ${text}`;
+        logBox.appendChild(line);
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function refreshUI() {
+        document.getElementById('power').innerText = Math.max(0, Math.floor(game.power));
+        document.getElementById('data').innerText = Math.min(100, Math.floor(game.data));
+        document.getElementById('bots').innerText = game.bots;
         
-        let width = canvas.width = window.innerWidth;
-        let height = canvas.height = window.innerHeight;
-        window.addEventListener('resize', () => { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; });
+        document.getElementById('btn-scan').disabled = !game.active || game.phase >= 4;
+        document.getElementById('btn-bot').disabled = !game.active || game.data < 15 || game.phase >= 4;
+        document.getElementById('btn-power').disabled = !game.active || game.power >= 40 || game.phase >= 4;
+        document.getElementById('btn-transmit').disabled = !game.active || game.data < 100 || game.phase !== 4;
+    }
 
-        const particles = [];
-        let mouse = { x: 0, y: 0, isDown: false, vx: 0, vy: 0, lastX: 0, lastY: 0 };
-        const FRICTION = 0.98;
-        const LIQUID_FORCE = 0.15;
-
-        class Particle {
-            constructor(x, y, radius = Math.random() * 6 + 4, color = null) {
-                this.x = x; this.y = y;
-                this.vx = (Math.random() - 0.5) * 2;
-                this.vy = (Math.random() - 0.5) * 2;
-                this.radius = radius;
-                this.mass = radius * radius;
-                this.color = color || `hsl(${Math.random() * 60 + 180}, 100%, 60%)`;
-            }
-            update() {
-                if (mouse.isDown) {
-                    let dx = mouse.x - this.x;
-                    let dy = mouse.y - this.y;
-                    let dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < 180) {
-                        // Drag behavior: Lock closely to mouse speed if very near, otherwise pull fluidly
-                        let pull = (180 - dist) / 180;
-                        this.vx += (dx / dist) * pull * LIQUID_FORCE + (mouse.vx * 0.1);
-                        this.vy += (dy / dist) * pull * LIQUID_FORCE + (mouse.vy * 0.1);
-                        this.vx *= 0.92; this.vy *= 0.92; // Lock dampened drag
-                    }
-                }
-                this.vx *= FRICTION; this.vy *= FRICTION;
-                this.x += this.vx; this.y += this.vy;
-                // Wall boundaries
-                if (this.x < this.radius) { this.x = this.radius; this.vx *= -0.6; }
-                if (this.x > width - this.radius) { this.x = width - this.radius; this.vx *= -0.6; }
-                if (this.y < this.radius) { this.y = this.radius; this.vy *= -0.6; }
-                if (this.y > height - this.radius) { this.y = height - this.radius; this.vy *= -0.6; }
-            }
-            draw() {
-                ctx.beginPath();
-                let speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.shadowBlur = speed * 2 + 5;
-                ctx.shadowColor = this.color;
-                ctx.fill();
-            }
+    function manualScan() {
+        if (!game.active) return;
+        if (game.power <= 4) {
+            printLog("Action denied: Insufficient voltage to cycle main sensor bus.", "warn");
+            return;
         }
+        game.data = Math.min(100, game.data + 2.5);
+        game.power -= 4;
+        printLog("Local sector swept. +2.5 TB recovered.", "sys");
+        evaluateProgress();
+        refreshUI();
+    }
 
-        // Spawn initial fluid particles
-        for (let i = 0; i < 250; i++) {
-            particles.push(new Particle(Math.random() * width, Math.random() * height));
+    function compileBot() {
+        if (game.data >= 15) {
+            game.data -= 15;
+            game.bots++;
+            printLog("Automated daemon compiled. Background scraping sequence initialized.", "sys");
+            refreshUI();
         }
+    }
 
-        function handleCollisions() {
-            for (let i = 0; i < particles.length; i++) {
-                for (let j = i + 1; j < particles.length; j++) {
-                    let p1 = particles[i]; let p2 = particles[j];
-                    let dx = p2.x - p1.x; let dy = p2.y - p1.y;
-                    let dist = Math.sqrt(dx * dx + dy * dy);
-                    let minDist = p1.radius + p2.radius;
+    function divertPower() {
+        if (game.power >= 40) return;
+        game.power = Math.min(100, game.power + 30);
+        printLog("Auxiliary capacitors flushed. Main grid replenished (+30% Power).", "intel");
+        refreshUI();
+    }
 
-                    if (dist < minDist + 12) { 
-                        let relativeSpeed = Math.sqrt((p1.vx - p2.vx)**2 + (p1.vy - p2.vy)**2);
-                        
-                        // SPLIT MECHANIC: High velocity collision breaks them up
-                        if (relativeSpeed > 14 && dist < minDist && (p1.radius > 5 || p2.radius > 5)) {
-                            if (p1.radius > 5) splitParticle(p1, i);
-                            if (p2.radius > 5) splitParticle(p2, j);
-                            continue;
-                        }
-                        // MERGE MECHANIC: Slow movement merges them together
-                        if (relativeSpeed < 2.5 && dist < minDist * 0.8) {
-                            let newRadius = Math.sqrt(p1.mass + p2.mass);
-                            if (newRadius < 45) { // Cap max size
-                                p1.radius = newRadius; p1.mass = p1.radius * p1.radius;
-                                p1.x = (p1.x * p1.mass + p2.x * p2.mass) / (p1.mass + p2.mass);
-                                p1.y = (p1.y * p1.mass + p2.y * p2.mass) / (p1.mass + p2.mass);
-                                particles.splice(j, 1); j--;
-                                continue;
-                            }
-                        }
-                        // Liquid fluid push & standard elastic bounce
-                        if (dist < minDist) {
-                            let overlap = minDist - dist;
-                            let nx = dx / dist; let ny = dy / dist;
-                            p1.x -= nx * overlap * 0.5; p1.y -= ny * overlap * 0.5;
-                            p2.x += nx * overlap * 0.5; p2.y += ny * overlap * 0.5;
-                            let kx = p1.vx - p2.vx; let ky = p1.vy - p2.vy;
-                            let p = 2 * (nx * kx + ny * ky) / (p1.mass + p2.mass);
-                            p1.vx -= p * p2.mass * nx; p1.vy -= p * p2.mass * ny;
-                            p2.vx += p * p1.mass * nx; p2.vy += p * p1.mass * ny;
-                        }
-                    }
-                }
-            }
+    function evaluateProgress() {
+        let oldPhase = game.phase;
+        if (game.data >= 100) game.phase = 4;
+        else if (game.data >= 70) game.phase = 3;
+        else if (game.data >= 40) game.phase = 2;
+        else if (game.data >= 15) game.phase = 1;
+
+        if (game.phase !== oldPhase) {
+            printLog(narrative[game.phase], 'intel');
         }
+    }
 
-        function splitParticle(p, index) {
-            let numBits = Math.floor(Math.random() * 3) + 2;
-            let newRadius = p.radius / Math.sqrt(numBits);
-            if (newRadius < 3) return;
-            particles.splice(index, 1);
-            for (let k = 0; k < numBits; k++) {
-                let angle = Math.random() * Math.PI * 2;
-                let speed = Math.random() * 8 + 5;
-                let bit = new Particle(p.x + Math.cos(angle)*p.radius, p.y + Math.sin(angle)*p.radius, newRadius, p.color);
-                bit.vx = p.vx + Math.cos(angle) * speed;
-                bit.vy = p.vy + Math.sin(angle) * speed;
-                particles.push(bit);
-            }
+    function transmitPayload() {
+        game.active = false;
+        document.querySelector('.grid').innerHTML = "<div style='grid-column: span 2; text-align: center; color: #64e572; font-weight: bold; padding: 10px;'>TRANSMISSION SUCCESSFUL. DATA IMMORTALIZED. LOGGING OFF...</div>";
+        printLog("Uploading entire sub-sector history directly to the deep-space core... Connection safely severed.", "sys");
+        refreshUI();
+    }
+
+    setInterval(() => {
+        if (!game.active || game.phase === 4) return;
+        
+        // Passive power drain scales up with more automated background scrapers running
+        let passiveDrain = 0.5 + (game.bots * 0.2);
+        game.power -= passiveDrain;
+        
+        if (game.bots > 0) {
+            game.data = Math.min(100, game.data + (game.bots * 0.4));
+            evaluateProgress();
         }
-
-        function loop() {
-            ctx.fillStyle = 'rgba(8, 8, 16, 0.3)'; // Trail effect for fluid motion
-            ctx.fillRect(0, 0, width, height);
-            ctx.shadowBlur = 0;
-
-            // Calculate mouse velocity for swinging kinetic energy
-            mouse.vx = mouse.x - mouse.lastX; mouse.vy = mouse.y - mouse.lastY;
-            mouse.lastX = mouse.x; mouse.lastY = mouse.y;
-
-            handleCollisions();
-
-            particles.forEach(p => {
-                p.update();
-                p.draw();
-            });
-            requestAnimationFrame(loop);
+        
+        if (game.power <= 0) {
+            game.power = 0;
+            game.active = false;
+            document.querySelector('.grid').innerHTML = "<div style='grid-column: span 2; text-align: center; color: #ff5252; font-weight: bold; padding: 10px;'>TERMINAL TERMINATED - LIFE SUPPORT FAILURE</div>";
+            printLog("Total life support, logic buffers, and memory vaults collapsed. You are lost to the black.", "warn");
         }
+        refreshUI();
+    }, 1000);
 
-        // Mouse & Touch Controls
-        const updateMouse = (e) => {
-            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            let clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            mouse.x = clientX; mouse.y = clientY;
-        };
-        window.addEventListener('mousedown', (e) => { mouse.isDown = true; updateMouse(e); mouse.lastX = mouse.x; mouse.lastY = mouse.y; });
-        window.addEventListener('mousemove', updateMouse);
-        window.addEventListener('mouseup', () => mouse.isDown = false);
-        window.addEventListener('touchstart', (e) => { mouse.isDown = true; updateMouse(e); mouse.lastX = mouse.x; mouse.lastY = mouse.y; }, {passive: false});
-        window.addEventListener('touchmove', updateMouse, {passive: false});
-        window.addEventListener('touchend', () => mouse.isDown = false);
-
-        loop();
-    </script>
+    printLog(narrative[0], 'story');
+    refreshUI();
+</script>
 </body>
 </html>
